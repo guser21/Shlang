@@ -13,7 +13,8 @@ import SkelDeclaration
 import PrintDeclaration
 import AbsDeclaration
 
-import EvaluateProgram
+
+
 
 import ErrM
 
@@ -36,14 +37,11 @@ run v p s = let ts = myLLexer s in case p ts of
                           putStrV v $ show ts
                           putStrLn s
                           exitFailure
-           Ok  tree -> do{
-            -- runProgramIO tree;
-            exitSuccess             
-           }
-            -- do putStrLn "\nParse Successful!"
-                          -- showTree v tree
-                          
-                          -- exitSuccess
+           Ok  tree -> do putStrLn "\nParse Successful!"
+                          showTree v tree
+
+                          exitSuccess
+
 
 showTree :: (Show a, Print a) => Int -> a -> IO ()
 showTree v tree
