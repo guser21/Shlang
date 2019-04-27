@@ -1,7 +1,7 @@
 all:
 	happy -gca ParDeclaration.y
 	alex -g LexDeclaration.x
-	ghc --make TestDeclaration.hs -o TestDeclaration
+	ghc --make Init.hs -o shlang 
 
 clean:
 	-rm -f *.log *.aux *.hi *.o *.dvi
