@@ -39,14 +39,15 @@ import ErrM
   'false' { PT _ (TS _ 24) }
   'if' { PT _ (TS _ 25) }
   'int' { PT _ (TS _ 26) }
-  'return' { PT _ (TS _ 27) }
-  'string' { PT _ (TS _ 28) }
-  'true' { PT _ (TS _ 29) }
-  'void' { PT _ (TS _ 30) }
-  'while' { PT _ (TS _ 31) }
-  '{' { PT _ (TS _ 32) }
-  '||' { PT _ (TS _ 33) }
-  '}' { PT _ (TS _ 34) }
+  'print' { PT _ (TS _ 27) }
+  'return' { PT _ (TS _ 28) }
+  'string' { PT _ (TS _ 29) }
+  'true' { PT _ (TS _ 30) }
+  'void' { PT _ (TS _ 31) }
+  'while' { PT _ (TS _ 32) }
+  '{' { PT _ (TS _ 33) }
+  '||' { PT _ (TS _ 34) }
+  '}' { PT _ (TS _ 35) }
 
 L_ident  { PT _ (TV $$) }
 L_integ  { PT _ (TI $$) }
@@ -85,6 +86,7 @@ Stmt : ';' { AbsDeclaration.Empty }
      | Ident '--' ';' { AbsDeclaration.Decr $1 }
      | 'return' Expr ';' { AbsDeclaration.Ret $2 }
      | 'return' ';' { AbsDeclaration.VRet }
+     | 'print' '(' Expr ')' { AbsDeclaration.Print $3 }
      | 'if' '(' Expr ')' Stmt { AbsDeclaration.Cond $3 $5 }
      | 'if' '(' Expr ')' Stmt 'else' Stmt { AbsDeclaration.CondElse $3 $5 $7 }
      | 'while' '(' Expr ')' Stmt { AbsDeclaration.While $3 $5 }

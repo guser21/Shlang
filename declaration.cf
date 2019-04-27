@@ -42,6 +42,8 @@ Ret.       Stmt ::= "return" Expr ";" ;
 
 VRet.      Stmt ::= "return" ";" ;
 
+Print.     Stmt ::= "print" "(" Expr ")";
+
 Cond.      Stmt ::= "if" "(" Expr ")" Stmt  ;
 
 CondElse.  Stmt ::= "if" "(" Expr ")" Stmt "else" Stmt  ;
