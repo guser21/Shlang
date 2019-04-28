@@ -28,6 +28,8 @@ instance Show Value where
     StrVal s ->s
     FunVal f ->show f
     VoidVal ->"voidVal"
+
+ 
 type Loc = Integer
 
 type Env = Map.Map Ident Loc
@@ -146,7 +148,7 @@ evalFunction (FnDef funType funName argDefs block) argVals  = do
   funArgDeclCont <- declValueList argIdent argVals
   resVal <- funArgDeclCont (evalBlock stmts)
   case resVal of 
-    Nothing -> throwError $ "No return statemant in " ++ (show funName)   
+    Nothing -> throwError $ "No return statemant in " ++ (let Ident rawName= funName in rawName)   
     Just val -> return val 
   
 --what if returns from an inside block
@@ -172,6 +174,7 @@ evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) = case h of
   Empty -> evalBlock tl  
   --TODO simplify
+  --TODO remove allocated locs after exiting block
   BStmt (Block stmts) ->do{ 
       blockRes <- local id (evalBlock stmts);
       case blockRes of
@@ -182,10 +185,11 @@ evalBlock (h:tl) = case h of
   Decl type_ items ->do
     declCont <- declValueList (declIdents items) (declValueInit type_ items)
     declCont (evalBlock tl)
+
   DeclBlock type_ items -> throwError "Not implemented"
   Ass ident expr -> evalExpr expr >>= (\val-> modifyVariable ident (const val)) >> evalBlock tl 
   Incr ident -> (modifyVariable ident (\(NumVal n)-> NumVal $ n+1 ))  >> evalBlock tl
-  Decr ident -> (modifyVariable ident (\(NumVal n)-> NumVal $ n+1 )) >> evalBlock tl
+  Decr ident -> (modifyVariable ident (\(NumVal n)-> NumVal $ n-1 )) >> evalBlock tl
   Ret expr -> (evalExpr expr) >>= (return . Just)
   VRet -> return $ Just  VoidVal
   Print expr -> (evalExpr expr) >>= (\expr -> liftIO $ print expr ) >> (evalBlock tl)
