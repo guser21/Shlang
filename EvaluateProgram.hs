@@ -73,30 +73,32 @@ modifyVariable var f =do
     Nothing -> throwError $ "unknown indentificator "++ (show var)
 
 
-declValue :: Ident -> Value -> Result (Result a -> Result a)
-declValue nameIdent val =  do
-   l <- newloc;
-   modifyMem (Map.insert l val);
-   return (local (Map.insert nameIdent l))
 
-declVar :: Type -> Ident-> Result (Result a -> Result a)
-declVar varType nameIdent = do
-  case varType of
-    Int -> declValue nameIdent (NumVal 0)
-    Bool -> declValue nameIdent (BoolVal True) 
-    Str -> declValue nameIdent (StrVal "") 
-    _ -> throwError "unrecognized type"    
 
+
+typeDefault :: Type -> Result Value
+typeDefault type_ = case type_ of
+  Int -> return $ NumVal 0
+  Bool -> return $ BoolVal True 
+  Str -> return $  StrVal "" 
+  _ -> throwError "unrecognized type"
 
 declVars :: Type -> [Ident]-> Result (Result a -> Result a)
-declVars varType nameIdents = do
-  case varType of
-    Int -> declValueList nameIdents (map (\_-> (NumVal 0)) nameIdents)
-    Bool -> declValueList nameIdents (map (\_-> (BoolVal True))  nameIdents) 
-    Str -> declValueList nameIdents (map (\_-> (StrVal ""))  nameIdents) 
-    _ -> throwError "unrecognized type" 
+declVars type_ nameIdents = declValueList nameIdents (map (\_-> typeDefault type_ ) nameIdents) 
 
-declValueList :: [Ident] -> [Value] -> Result (Result a -> Result a)
+declVar :: Type -> Ident-> Result (Result a -> Result a)
+declVar type_ nameIdent = declValue nameIdent (typeDefault type_)
+
+
+
+declValue :: Ident -> (Result Value) -> Result (Result a -> Result a)
+declValue nameIdent resVal =  do
+    l <- newloc;
+    val<-resVal;
+    modifyMem (Map.insert l val);
+    return (local (Map.insert nameIdent l))
+
+declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
   declCont <- declValue fn fv
   declNextCont <- declValueList nameIdents values
@@ -117,7 +119,7 @@ runFunctions :: [TopDef] -> Result ()
 runFunctions (h:tl) = do 
   let FnDef reType ident args block = h 
   liftIO $ print ident;
-  declCont <- declValue ident (FunVal h)
+  declCont <- declValue ident (return $ FunVal h)
   declCont (runFunctions tl)
 
 
@@ -144,7 +146,7 @@ runProgramIO prog = do
 
 
 -- --Todo typecheckint
-evalFunction :: TopDef -> [Value] -> Result Value
+evalFunction :: TopDef -> [Result Value] -> Result Value
 evalFunction (FnDef funType funName argDefs block) argVals  = do
   let argIdent =  map (\(Arg argType argIdent)-> argIdent) argDefs 
   let Block stmts = block
@@ -166,6 +168,16 @@ evalFunction (FnDef funType funName argDefs block) argVals  = do
 --   return $ Just (NumVal 1)
 --todo Maybe is not the way to go
 -- {-
+declValueInit :: Type -> [Item] -> ([Result Value])  
+declValueInit type_ items =  map (\it ->do 
+  case it of 
+    (NoInit ident) -> typeDefault type_
+    (Init ident expr) -> evalExpr expr) items
+
+declIdents :: [Item] -> [Ident]
+declIdents items =  map (\it -> case it of 
+  NoInit ident -> ident
+  Init ident expr -> ident) items
 
 
 evalBlock :: [Stmt] -> Result (Maybe Value)
@@ -178,17 +190,9 @@ evalBlock (h:tl) = case h of
       Just finalVal -> return (Just finalVal) 
   }
 
-  Decl type_ items -> throwError "not implemented" 
-    -- do
-    -- declCont<- (foldl (\acc el -> case el of 
-    --   NoInit ident-> do
-    --     curDecl <- declVar type_ ident
-    --     acc >>=(\fun-> return $ fun . curDecl) 
-    --   Init ident expr -> do
-    --     exprVal <- evalExpr expr
-    --     curDecl <- declValue ident exprVal
-    --     acc >>=(\fun-> return $ fun . curDecl)) (return id) items) 
-    -- declCont (evalBlock tl)
+  Decl type_ items ->do
+    declCont <- declValueList (declIdents items) (declValueInit type_ items)
+    declCont (evalBlock tl)
        
   DeclBlock type_ items -> throwError "Not implemented"
   Ass ident expr -> evalExpr expr >>= (\val-> modifyVariable ident (const val)) >> evalBlock tl 
@@ -212,10 +216,10 @@ evalExpr x = case x of
   ELitInt integer -> return (NumVal integer)
   ELitTrue -> return (BoolVal True)
   ELitFalse -> return (BoolVal False)
-  EApp ident args -> throwError "Not implemented" 
-    --  do
-    -- let evArgs = map (\exp -> let Result arg = evalExpr exp in arg) exprs
-    -- getValByIdent ident >>= (\ (FunVal fun) -> evalFunction fun evArgs)
+  EApp ident args -> do
+    let argRes= map evalExpr args
+    (FunVal fun) <- getValByIdent ident
+    evalFunction fun argRes 
 
   EString string -> return (StrVal string)
   Neg expr -> (evalExpr expr) >>=(\(NumVal v) -> return $ NumVal (-v) )
