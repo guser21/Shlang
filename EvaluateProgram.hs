@@ -72,10 +72,6 @@ modifyVariable var f =do
     Just loc ->  (getValByLoc loc) >>= (\val -> modifyMem (\curSt-> Map.insert loc (f val) curSt))
     Nothing -> throwError $ "unknown indentificator "++ (show var)
 
-
-
-
-
 typeDefault :: Type -> Result Value
 typeDefault type_ = case type_ of
   Int -> return $ NumVal 0
@@ -88,8 +84,6 @@ declVars type_ nameIdents = declValueList nameIdents (map (\_-> typeDefault type
 
 declVar :: Type -> Ident-> Result (Result a -> Result a)
 declVar type_ nameIdent = declValue nameIdent (typeDefault type_)
-
-
 
 declValue :: Ident -> (Result Value) -> Result (Result a -> Result a)
 declValue nameIdent resVal =  do
@@ -163,11 +157,6 @@ evalFunction (FnDef funType funName argDefs block) argVals  = do
 --   }
 -- }
 
--- evalBlock stmts =do
---   -- liftIO $ print bl 
---   return $ Just (NumVal 1)
---todo Maybe is not the way to go
--- {-
 declValueInit :: Type -> [Item] -> ([Result Value])  
 declValueInit type_ items =  map (\it ->do 
   case it of 
@@ -183,6 +172,7 @@ declIdents items =  map (\it -> case it of
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) = case h of
   Empty -> evalBlock tl  
+  --TODO simplify
   BStmt (Block stmts) -> do{ 
     blockRes <- local id (evalBlock stmts);
     case blockRes of
@@ -203,9 +193,26 @@ evalBlock (h:tl) = case h of
   Print expr -> (evalExpr expr) >>= (\expr -> liftIO $ print expr ) >> (evalBlock tl)
 
   --what if we return inside if statement
-  Cond expr stmt ->throwError "Not implemented"  
-  CondElse expr stmt1 stmt2 -> throwError "Not implemented" 
-  While expr stmt -> throwError "Not implemented" 
+  Cond expr stmt -> evalBlock ([CondElse expr stmt Empty]++tl)
+  CondElse expr stmt1 stmt2 -> do
+    (BoolVal condVal) <-evalExpr expr;
+    if condVal then
+      do{
+        bodyEval<- (evalBlock [stmt1]);
+        case bodyEval of 
+          Nothing -> evalBlock tl 
+          Just finVal -> return (Just finVal)
+      }
+    else 
+      do{
+        bodyEval<- (evalBlock [stmt2]);
+        case bodyEval of 
+          Nothing -> evalBlock tl 
+          Just finVal -> return (Just finVal)
+      }
+  --TODO test not sure 
+  While expr stmt -> let whileLoop= (CondElse expr (BStmt $ Block [stmt,whileLoop]) Empty) in
+    evalBlock ([whileLoop]++tl)
   SExp expr -> (evalExpr expr) >> evalBlock tl 
 
 evalBlock [] = return Nothing
@@ -220,40 +227,50 @@ evalExpr x = case x of
     let argRes= map evalExpr args
     (FunVal fun) <- getValByIdent ident
     evalFunction fun argRes 
-
   EString string -> return (StrVal string)
   Neg expr -> (evalExpr expr) >>=(\(NumVal v) -> return $ NumVal (-v) )
   Not expr -> (evalExpr expr) >>=(\(BoolVal v) -> return $ BoolVal (not v))
+
   EMul expr1 mulop expr2 -> do
     (NumVal v1)<- evalExpr expr1
     (NumVal v2)<- evalExpr expr2
-    return (NumVal (v1*v2))
-  EAdd expr1 addop expr2 -> do
-    (NumVal v1)<- evalExpr expr1
-    (NumVal v2)<- evalExpr expr2
-    return (NumVal (v1+v2))
-  ERel expr1 relop expr2 -> throwError "Not Implemented"
-  EAnd expr1 expr2 -> do
-    (BoolVal v1)<- evalExpr expr1
-    (BoolVal v2)<- evalExpr expr2
-    return (BoolVal (v1 && v2))
-  EOr expr1 expr2 -> do
-    (BoolVal v1)<- evalExpr expr1
-    (BoolVal v2)<- evalExpr expr2
-    return (BoolVal (v1 || v2))
+    case mulop of {
+    Times -> return $ NumVal (v1*v2);
+    Div ->if v2==0 then throwError "cannot divide by 0" else return $ NumVal(v1 `quot` v2);
+    Mod -> if v2 == 0 then throwError "cannot evaluate mod by 0" else return $ NumVal(v1 `mod` v2)
+    } 
 
--- evalBlock (h:t) = case h of
---   VRet -> return $ Just Void
+  EAdd expr1 addop expr2 -> evalArgs expr1 expr2 (\(NumVal v1) (NumVal v2) ->case addop of { 
+    Plus -> NumVal(v1+v2);
+    Minus -> NumVal(v1-v2)})
 
---   Ret expr -> ( (evalExpr expr) >>= (\x ->Just x))
---   _ -> return $ (evalStmt h) >>= evalBlock t 
--- evalBlock [] = return Nothing  
+  ERel expr1 relop expr2 -> evalRelOp expr1 relop expr2
+  EAnd expr1 expr2 -> evalArgs expr1 expr2 (\(BoolVal v1) (BoolVal v2) -> BoolVal(v1 && v2))
+  EOr expr1 expr2 -> evalArgs expr1 expr2 (\(BoolVal v1) (BoolVal v2) -> BoolVal(v1 || v2))
 
 
--- evalStmt stmt = liftIO $ print (stmt) 
+evalArgs expr1 expr2 f  = do
+  v1<- evalExpr expr1
+  v2<- evalExpr expr2
+  return $ f v1 v2
 
--- evalExpr :: Expr -> Result Value
--- evalExpr expr = do
---   liftIO $ print (expr)
---   return $ StrVal "exprEval"
--- -}
+lessThan (BoolVal b1) (BoolVal b2) = b1 < b2 
+lessThan (StrVal s1) (StrVal s2) = s1 < s2
+lessThan (NumVal n1) (NumVal n2) = n1<n2  
+
+equal (BoolVal b1) (BoolVal b2) = b1 == b2 
+equal (StrVal s1) (StrVal s2) = s1 == s2
+equal (NumVal n1) (NumVal n2) = n1 == n2  
+
+evalRelOp :: Expr -> RelOp -> Expr -> Result Value
+evalRelOp expr1 relop expr2 = do
+  l <-evalExpr expr1
+  r <-evalExpr expr2
+  let res = case relop of{ 
+    LTH ->(lessThan l r);
+    LE -> (lessThan l r) || (equal l r);
+    GTH -> lessThan r l;
+    GE ->  (lessThan r l) || (equal l r);
+    EQU -> equal l r;
+    NE ->  not $ equal l r;
+    } in return (BoolVal res)
