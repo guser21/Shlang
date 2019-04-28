@@ -112,7 +112,6 @@ runProgram (Program topDefs) = runFunctions topDefs
 runFunctions :: [TopDef] -> Result ()
 runFunctions (h:tl) = do 
   let FnDef reType ident args block = h 
-  liftIO $ print ident;
   declCont <- declValue ident (return $ FunVal h)
   declCont (runFunctions tl)
 
@@ -173,17 +172,16 @@ evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) = case h of
   Empty -> evalBlock tl  
   --TODO simplify
-  BStmt (Block stmts) -> do{ 
-    blockRes <- local id (evalBlock stmts);
-    case blockRes of
-      Nothing -> evalBlock tl
-      Just finalVal -> return (Just finalVal) 
-  }
-
+  BStmt (Block stmts) ->do{ 
+      blockRes <- local id (evalBlock stmts);
+      case blockRes of
+        Nothing -> evalBlock tl
+        Just finalVal -> return (Just finalVal) 
+    }
+    
   Decl type_ items ->do
     declCont <- declValueList (declIdents items) (declValueInit type_ items)
     declCont (evalBlock tl)
-       
   DeclBlock type_ items -> throwError "Not implemented"
   Ass ident expr -> evalExpr expr >>= (\val-> modifyVariable ident (const val)) >> evalBlock tl 
   Incr ident -> (modifyVariable ident (\(NumVal n)-> NumVal $ n+1 ))  >> evalBlock tl
@@ -191,25 +189,10 @@ evalBlock (h:tl) = case h of
   Ret expr -> (evalExpr expr) >>= (return . Just)
   VRet -> return $ Just  VoidVal
   Print expr -> (evalExpr expr) >>= (\expr -> liftIO $ print expr ) >> (evalBlock tl)
-
-  --what if we return inside if statement
   Cond expr stmt -> evalBlock ([CondElse expr stmt Empty]++tl)
-  CondElse expr stmt1 stmt2 -> do
-    (BoolVal condVal) <-evalExpr expr;
-    if condVal then
-      do{
-        bodyEval<- (evalBlock [stmt1]);
-        case bodyEval of 
-          Nothing -> evalBlock tl 
-          Just finVal -> return (Just finVal)
-      }
-    else 
-      do{
-        bodyEval<- (evalBlock [stmt2]);
-        case bodyEval of 
-          Nothing -> evalBlock tl 
-          Just finVal -> return (Just finVal)
-      }
+  CondElse expr stmt1 stmt2 -> let evalAsBlock stmt =evalBlock ([BStmt (Block [stmt])]++tl) in
+     (evalExpr expr) >>= (\ (BoolVal cond) -> if cond then evalAsBlock stmt1 else evalAsBlock stmt2 )
+ 
   --TODO test not sure 
   While expr stmt -> let whileLoop= (CondElse expr (BStmt $ Block [stmt,whileLoop]) Empty) in
     evalBlock ([whileLoop]++tl)
