@@ -232,8 +232,20 @@ evalExpr x = case x of
     v2<- evalExpr expr2
     addVal v1 v2 addop
   ERel expr1 relop expr2 -> evalRelOp expr1 relop expr2
-  EAnd expr1 expr2 -> evalArgs expr1 expr2 (\(BoolVal v1) (BoolVal v2) -> BoolVal(v1 && v2))
-  EOr expr1 expr2 -> evalArgs expr1 expr2 (\(BoolVal v1) (BoolVal v2) -> BoolVal(v1 || v2))
+  --todo short circuit evaluation
+  EAnd expr1 expr2 ->do
+    (BoolVal v1)<- evalExpr expr1
+    if (not v1) then
+      return $ BoolVal False
+    else
+      evalExpr expr2
+
+  EOr expr1 expr2 ->do
+    (BoolVal v1)<- evalExpr expr1
+    if v1 then
+      return $ BoolVal True
+    else
+      evalExpr expr2
 
 
 evalArgs expr1 expr2 f  = do
