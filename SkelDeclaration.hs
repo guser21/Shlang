@@ -40,6 +40,7 @@ transStmt x = case x of
   CondElse expr stmt1 stmt2 -> failure x
   While expr stmt -> failure x
   SExp expr -> failure x
+  ConstFor type_ ident expr1 expr2 stmt -> failure x
 transItem :: Item -> Result
 transItem x = case x of
   NoInit ident -> failure x

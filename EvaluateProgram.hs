@@ -9,7 +9,8 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Writer
 import           Data.Maybe
-import qualified Data.Map                      as Map
+import qualified Data.Map as Map
+import qualified Data.Set as Set                      
 import System.IO
 import System.Exit ( exitFailure, exitSuccess )
 
@@ -31,8 +32,8 @@ instance Show Value where
 
  
 type Loc = Integer
-
-type Env = Map.Map Ident Loc
+type ConstIdent = Set.Set Ident
+type Env = (Map.Map Ident Loc,ConstIdent)
 type Mem = Map.Map Loc Value
 
 type Store = (Mem,Loc)
@@ -58,21 +59,22 @@ getValByLoc loc =do
 
 getValByIdent ::Ident -> Result Value
 getValByIdent var = do
-  env <- ask
+  (env,_) <- ask
   (st,l) <- get
   let varLoc = Map.lookup var env
   case varLoc of 
     Just loc ->  getValByLoc loc
-    Nothing -> throwError $ "unknown indentificator "++ (show var)
+    Nothing -> throwError $ "unknown indentificator " ++ show var
 
 modifyVariable :: Ident -> (Value -> Value )-> Result ()
 modifyVariable var f =do 
-  env <- ask
+  (env,constNames) <- ask
   (st,l) <- get
+  let (Ident varname)= var
   let varLoc = Map.lookup var env
-  case varLoc of 
-    Just loc ->  (getValByLoc loc) >>= (\val -> modifyMem (\curSt-> Map.insert loc (f val) curSt))
-    Nothing -> throwError $ "unknown indentificator "++ (show var)
+  if Set.member var constNames then throwError $ "cannot modify const variable "++ varname else (case varLoc of 
+    Just loc ->  getValByLoc loc >>= (modifyMem . Map.insert loc . f)
+    Nothing -> throwError $ "unknown indentificator "++ show var)
 
 typeDefault :: Type -> Result Value
 typeDefault type_ = case type_ of
@@ -87,19 +89,19 @@ declVars type_ nameIdents = declValueList nameIdents (map (\_-> typeDefault type
 declVar :: Type -> Ident-> Result (Result a -> Result a)
 declVar type_ nameIdent = declValue nameIdent (typeDefault type_)
 
-declValue :: Ident -> (Result Value) -> Result (Result a -> Result a)
+declValue :: Ident -> Result Value -> Result (Result a -> Result a)
 declValue nameIdent resVal =  do
     l <- newloc;
     val<-resVal;
     modifyMem (Map.insert l val);
-    return (local (Map.insert nameIdent l))
+    return (local (\(env,constNames) -> (Map.insert nameIdent l env,constNames)))
 
 declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
   declCont <- declValue fn fv
   declNextCont <- declValueList nameIdents values
   return $ declCont . declNextCont
-declValueList [] [] = return $ (local id) 
+declValueList [] [] = return (local id) 
 
 declValueList [] (h:t) = throwError "Mismatching argument list size"
 declValueList (h:t) [] = throwError "Mismatching argument list size"
@@ -119,8 +121,8 @@ runFunctions (h:tl) = do
 
 
 runFunctions [] = do
-  env <- ask;
-  case  (Map.lookup mainFunc env) of
+  (env,_) <- ask;
+  case Map.lookup mainFunc env of
     --call main
     Just mainLoc -> do
       funRes <- getValByLoc mainLoc
@@ -133,43 +135,43 @@ runFunctions [] = do
 
 runProgramIO :: Program-> IO ()
 runProgramIO prog = do
-   ans <- runExceptT (runStateT (runReaderT (runProgram prog) Map.empty) (Map.empty,0)) ; 
+   ans <- runExceptT (runStateT (runReaderT (runProgram prog) (Map.empty,Set.empty) ) (Map.empty,0)) ; 
    case ans of 
     (Left errMesg) -> putStrLn $ "Runtime error: " ++ errMesg
     _ -> return () --ended as supposed
 
-
+    
 
 -- --Todo typecheckint
 evalFunction :: TopDef -> [Result Value] -> Result Value
 evalFunction (FnDef funType funName argDefs block) argVals  = do
   let argIdent =  map (\(Arg argType argIdent)-> argIdent) argDefs 
   let Block stmts = block
+  let Ident rawName= funName 
   funArgDeclCont <- declValueList argIdent argVals
   resVal <- funArgDeclCont (evalBlock stmts)
   case resVal of
     --todo if fun type is void no throw  
-    Nothing ->if funType == Void then return VoidVal else throwError $ "No return statemant in " ++ (let Ident rawName= funName in rawName)   
+    Nothing ->if funType == Void then return VoidVal else throwError $ "No return statemant in " ++ rawName   
     Just val -> return val 
-  
---what if returns from an inside block
--- {
---   {
---     return 5
---   }
--- }
 
-declValueInit :: Type -> [Item] -> ([Result Value])  
-declValueInit type_ items =  map (\it ->do 
-  case it of 
+declValueInit :: Type -> [Item] -> [Result Value]  
+declValueInit type_ =  map (\it ->  case it of 
     (NoInit ident) -> typeDefault type_
-    (Init ident expr) -> evalExpr expr) items
+    (Init ident expr) -> evalExpr expr) 
 
 declIdents :: [Item] -> [Ident]
-declIdents items =  map (\it -> case it of 
+declIdents =  map (\it -> case it of 
   NoInit ident -> ident
-  Init ident expr -> ident) items
+  Init ident expr -> ident) 
 
+
+runBody curInd loc end stmt = if curInd <= end then
+  do  
+    modifyMem (Map.insert loc (NumVal curInd)); 
+    evalBlock [stmt] >> runBody (curInd + 1) loc end stmt
+else
+  return ()
 
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) = case h of
@@ -182,26 +184,33 @@ evalBlock (h:tl) = case h of
         Nothing -> evalBlock tl
         Just finalVal -> return (Just finalVal) 
     }
-    
   Decl type_ items ->do
     declCont <- declValueList (declIdents items) (declValueInit type_ items)
     declCont (evalBlock tl)
-
   DeclBlock type_ items -> throwError "Not implemented"
-  Ass ident expr -> evalExpr expr >>= (\val-> modifyVariable ident (const val)) >> evalBlock tl 
-  Incr ident -> (modifyVariable ident (\(NumVal n)-> NumVal $ n+1 ))  >> evalBlock tl
-  Decr ident -> (modifyVariable ident (\(NumVal n)-> NumVal $ n-1 )) >> evalBlock tl
-  Ret expr -> (evalExpr expr) >>= (return . Just)
+  Ass ident expr -> evalExpr expr >>= (modifyVariable ident . const) >> evalBlock tl 
+  Incr ident -> evalBlock $ Ass ident (EAdd (EVar ident) Plus (ELitInt 1)) : tl
+  Decr ident -> evalBlock $ Ass ident (EAdd (EVar ident) Minus (ELitInt 1)) : tl
+  
+  ConstFor type_ ident expr1 expr2 stmt -> do 
+    (NumVal start)<-evalExpr expr1;
+    (NumVal end)<-evalExpr expr2;
+    loc <- newloc;
+    local (\(env,constName) -> (Map.insert ident loc env, Set.insert ident constName)) (runBody start loc end stmt) >> evalBlock tl
+
+       
+    --cannot change in loop;
+    -- let forbody= [While (ERel (EVar ident) LE (ELitInt end)) (BStmt $ Block [stmt, Incr ident])]
+    -- local (\(env,constName) -> (Map.insert ident l env, Set.insert ident constName)) (evalBlock forbody) >> (evalBlock tl)
+
+  Ret expr -> evalExpr expr >>= (return . Just)
   VRet -> return $ Just  VoidVal
-  Print expr -> (evalExpr expr) >>= (\expr -> liftIO $ print expr ) >> (evalBlock tl)
-  Cond expr stmt -> evalBlock ([CondElse expr stmt Empty]++tl)
-  CondElse expr stmt1 stmt2 -> let evalAsBlock stmt =evalBlock ([BStmt (Block [stmt])]++tl) in
-     (evalExpr expr) >>= (\ (BoolVal cond) -> if cond then evalAsBlock stmt1 else evalAsBlock stmt2 )
- 
-  --TODO test not sure 
-  While expr stmt -> let whileLoop= (CondElse expr (BStmt $ Block [stmt,whileLoop]) Empty) in
-    evalBlock ([whileLoop]++tl)
-  SExp expr -> (evalExpr expr) >> evalBlock tl 
+  Print expr -> evalExpr expr >>= (liftIO . print) >> evalBlock tl
+  Cond expr stmt -> evalBlock $ CondElse expr stmt Empty : tl
+  CondElse expr stmt1 stmt2 -> let evalAsBlock stmt =evalBlock $ BStmt (Block [stmt]) :tl in
+     evalExpr expr >>= (\ (BoolVal cond) -> if cond then evalAsBlock stmt1 else evalAsBlock stmt2 )
+  While expr stmt -> let whileLoop= CondElse expr (BStmt $ Block [stmt,whileLoop]) Empty in evalBlock $ whileLoop : tl
+  SExp expr -> evalExpr expr >> evalBlock tl 
 
 evalBlock [] = return Nothing
 
@@ -216,8 +225,8 @@ evalExpr x = case x of
     (FunVal fun) <- getValByIdent ident
     evalFunction fun argRes 
   EString string -> return (StrVal string)
-  Neg expr -> (evalExpr expr) >>=(\(NumVal v) -> return $ NumVal (-v) )
-  Not expr -> (evalExpr expr) >>=(\(BoolVal v) -> return $ BoolVal (not v))
+  Neg expr -> evalExpr expr >>=(\(NumVal v) -> return $ NumVal (-v) )
+  Not expr -> evalExpr expr >>=(\(BoolVal v) -> return $ BoolVal (not v))
 
   EMul expr1 mulop expr2 -> do
     (NumVal v1)<- evalExpr expr1
@@ -225,20 +234,17 @@ evalExpr x = case x of
     case mulop of {
     Times -> return $ NumVal (v1*v2);
     Div ->if v2==0 then throwError "cannot divide by 0" else return $ NumVal(v1 `quot` v2);
-    Mod -> if v2 == 0 then throwError "cannot evaluate mod by 0" else return $ NumVal(v1 `mod` v2)
+    Mod -> if v2 == 0 then throwError "cannot evaluate mod by 0" else return $ NumVal(v1 `mod` v2);
     } 
   EAdd expr1 addop expr2 ->do
     v1<- evalExpr expr1
     v2<- evalExpr expr2
     addVal v1 v2 addop
   ERel expr1 relop expr2 -> evalRelOp expr1 relop expr2
-  --todo short circuit evaluation
+
   EAnd expr1 expr2 ->do
     (BoolVal v1)<- evalExpr expr1
-    if (not v1) then
-      return $ BoolVal False
-    else
-      evalExpr expr2
+    if not v1 then return $ BoolVal False else evalExpr expr2
 
   EOr expr1 expr2 ->do
     (BoolVal v1)<- evalExpr expr1
@@ -260,6 +266,7 @@ addVal (NumVal v1) (NumVal v2) addop = case addop of {
   Minus ->return $ NumVal(v1-v2);
 }
 
+
 addVal (StrVal v1) (StrVal v2) addop = case addop of { 
   Plus -> return $ StrVal (v1++v2);
   Minus -> throwError "subtraction not supported on strings"
@@ -278,10 +285,10 @@ evalRelOp expr1 relop expr2 = do
   l <-evalExpr expr1
   r <-evalExpr expr2
   let res = case relop of{ 
-    LTH ->(lessThan l r);
-    LE -> (lessThan l r) || (equal l r);
+    LTH ->lessThan l r;
+    LE -> lessThan l r || equal l r;
     GTH -> lessThan r l;
-    GE ->  (lessThan r l) || (equal l r);
+    GE ->  lessThan r l || equal l r;
     EQU -> equal l r;
     NE ->  not $ equal l r;
     } in return (BoolVal res)

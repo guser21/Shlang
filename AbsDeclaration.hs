@@ -35,6 +35,7 @@ data Stmt
     | CondElse Expr Stmt Stmt
     | While Expr Stmt
     | SExp Expr
+    | ConstFor Type Ident Expr Expr Stmt
   deriving (Eq, Ord, Show, Read)
 
 data Item = NoInit Ident | Init Ident Expr

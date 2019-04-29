@@ -33,8 +33,9 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 
 The reserved words used in declaration are the following:
   | ``block`` | ``boolean`` | ``else`` | ``false``
-  | ``if`` | ``int`` | ``print`` | ``return``
-  | ``string`` | ``true`` | ``void`` | ``while``
+  | ``for`` | ``if`` | ``int`` | ``print``
+  | ``return`` | ``string`` | ``to`` | ``true``
+  | ``void`` | ``while`` |  | 
 
 The symbols used in declaration are the following:
   | ( | ) | , | {
@@ -78,6 +79,7 @@ All other symbols are terminals.
   |  |  **|**  | ``if`` ``(`` //Expr// ``)`` //Stmt// ``else`` //Stmt// 
   |  |  **|**  | ``while`` ``(`` //Expr// ``)`` //Stmt// 
   |  |  **|**  | //Expr// ``;`` 
+  |  |  **|**  | ``for`` ``(`` //Type// //Ident// ``=`` //Expr// ``to`` //Expr// ``)`` //Stmt// 
   | //Item// | -> | //Ident// 
   |  |  **|**  | //Ident// ``=`` //Expr// 
   | //[Item]// | -> | //Item// 

@@ -37,17 +37,19 @@ import ErrM
   'boolean' { PT _ (TS _ 22) }
   'else' { PT _ (TS _ 23) }
   'false' { PT _ (TS _ 24) }
-  'if' { PT _ (TS _ 25) }
-  'int' { PT _ (TS _ 26) }
-  'print' { PT _ (TS _ 27) }
-  'return' { PT _ (TS _ 28) }
-  'string' { PT _ (TS _ 29) }
-  'true' { PT _ (TS _ 30) }
-  'void' { PT _ (TS _ 31) }
-  'while' { PT _ (TS _ 32) }
-  '{' { PT _ (TS _ 33) }
-  '||' { PT _ (TS _ 34) }
-  '}' { PT _ (TS _ 35) }
+  'for' { PT _ (TS _ 25) }
+  'if' { PT _ (TS _ 26) }
+  'int' { PT _ (TS _ 27) }
+  'print' { PT _ (TS _ 28) }
+  'return' { PT _ (TS _ 29) }
+  'string' { PT _ (TS _ 30) }
+  'to' { PT _ (TS _ 31) }
+  'true' { PT _ (TS _ 32) }
+  'void' { PT _ (TS _ 33) }
+  'while' { PT _ (TS _ 34) }
+  '{' { PT _ (TS _ 35) }
+  '||' { PT _ (TS _ 36) }
+  '}' { PT _ (TS _ 37) }
 
 L_ident  { PT _ (TV $$) }
 L_integ  { PT _ (TI $$) }
@@ -91,6 +93,7 @@ Stmt : ';' { AbsDeclaration.Empty }
      | 'if' '(' Expr ')' Stmt 'else' Stmt { AbsDeclaration.CondElse $3 $5 $7 }
      | 'while' '(' Expr ')' Stmt { AbsDeclaration.While $3 $5 }
      | Expr ';' { AbsDeclaration.SExp $1 }
+     | 'for' '(' Type Ident '=' Expr 'to' Expr ')' Stmt { AbsDeclaration.ConstFor $3 $4 $6 $8 $10 }
 Item :: { Item }
 Item : Ident { AbsDeclaration.NoInit $1 }
      | Ident '=' Expr { AbsDeclaration.Init $1 $3 }

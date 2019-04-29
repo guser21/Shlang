@@ -52,6 +52,7 @@ While.     Stmt ::= "while" "(" Expr ")" Stmt ;
 
 SExp.      Stmt ::= Expr  ";" ;
 
+ConstFor.  Stmt ::= "for" "(" Type Ident "=" Expr "to" Expr ")" Stmt;
 -- Types ---------------------------------------------------
 
 Int.       Type ::= "int" ;

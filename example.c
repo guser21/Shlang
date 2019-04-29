@@ -27,5 +27,9 @@ int main (){
 	if(x==1) int y=1;
 	print(y);
 	// return x*factorial(x-1);
+	for(int i=1 to 10){
+		print(i);
+		i++;
+	}
 	return 0;
 }
