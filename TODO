@@ -1,1 +1,5 @@
 detect stack overflow
+short circuit evaluation
+type inference 
+runtime exception ???
+typechecker
