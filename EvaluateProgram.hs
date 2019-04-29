@@ -147,8 +147,9 @@ evalFunction (FnDef funType funName argDefs block) argVals  = do
   let Block stmts = block
   funArgDeclCont <- declValueList argIdent argVals
   resVal <- funArgDeclCont (evalBlock stmts)
-  case resVal of 
-    Nothing -> throwError $ "No return statemant in " ++ (let Ident rawName= funName in rawName)   
+  case resVal of
+    --todo if fun type is void no throw  
+    Nothing ->if funType == Void then return VoidVal else throwError $ "No return statemant in " ++ (let Ident rawName= funName in rawName)   
     Just val -> return val 
   
 --what if returns from an inside block
@@ -226,11 +227,10 @@ evalExpr x = case x of
     Div ->if v2==0 then throwError "cannot divide by 0" else return $ NumVal(v1 `quot` v2);
     Mod -> if v2 == 0 then throwError "cannot evaluate mod by 0" else return $ NumVal(v1 `mod` v2)
     } 
-
-  EAdd expr1 addop expr2 -> evalArgs expr1 expr2 (\(NumVal v1) (NumVal v2) ->case addop of { 
-    Plus -> NumVal(v1+v2);
-    Minus -> NumVal(v1-v2)})
-
+  EAdd expr1 addop expr2 ->do
+    v1<- evalExpr expr1
+    v2<- evalExpr expr2
+    addVal v1 v2 addop
   ERel expr1 relop expr2 -> evalRelOp expr1 relop expr2
   EAnd expr1 expr2 -> evalArgs expr1 expr2 (\(BoolVal v1) (BoolVal v2) -> BoolVal(v1 && v2))
   EOr expr1 expr2 -> evalArgs expr1 expr2 (\(BoolVal v1) (BoolVal v2) -> BoolVal(v1 || v2))
@@ -240,6 +240,18 @@ evalArgs expr1 expr2 f  = do
   v1<- evalExpr expr1
   v2<- evalExpr expr2
   return $ f v1 v2
+  
+addVal :: Value -> Value ->AddOp-> Result Value 
+
+addVal (NumVal v1) (NumVal v2) addop = case addop of { 
+  Plus -> return $ NumVal(v1+v2);
+  Minus ->return $ NumVal(v1-v2);
+}
+
+addVal (StrVal v1) (StrVal v2) addop = case addop of { 
+  Plus -> return $ StrVal (v1++v2);
+  Minus -> throwError "subtraction not supported on strings"
+}
 
 lessThan (BoolVal b1) (BoolVal b2) = b1 < b2 
 lessThan (StrVal s1) (StrVal s2) = s1 < s2
