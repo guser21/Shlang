@@ -187,6 +187,7 @@ evalBlock (h:tl) =
     Empty -> evalBlock tl
   --TODO simplify
   --TODO remove allocated locs after exiting block
+  --run local 
     BStmt (Block stmts) -> do
       blockRes <- local id (evalBlock stmts)
       case blockRes of

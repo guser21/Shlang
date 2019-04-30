@@ -102,6 +102,8 @@ declIdents =
 
 declValue :: Ident -> Result ValType -> Result (Result a -> Result a)
 declValue nameIdent resVal = do
+  (env, constName) <-ask
+  when (Map.member nameIdent env) (throwError $ "name " ++ show nameIdent ++ " is already in use")
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
@@ -113,6 +115,9 @@ declValueList (fn:nameIdents) (fv:values) = do
   declCont <- declValue fn fv
   declNextCont <- declValueList nameIdents values
   return $ declCont . declNextCont
+  -- declCont (declValueList nameIdents values)
+
+  
 declValueList [] [] = return (local id)
 declValueList [] (h:t) = throwError "Mismatching argument list size"
 declValueList (h:t) [] = throwError "Mismatching argument list size"
@@ -179,7 +184,8 @@ getStmtType (stmt:tl) expectedType =
     Empty -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
     BStmt block -> do
       btype <- getBlockType block expectedType
-      getStmtType tl expectedType >>= (\res -> return $ btype : res)
+      --todo local run
+      local id (getStmtType tl expectedType) >>= (\res -> return $ btype : res)
     Decl type_ items -> do
       typeCheck <-
         foldl
@@ -234,11 +240,13 @@ getStmtType (stmt:tl) expectedType =
     Cond expr stmt -> do
       stmtType <- getBlockType (Block [stmt]) expectedType
       condType <- getExprType expr
-      when (condType /= SimpleType Bool) (throwError "incompatible type in if expression")
+      when
+        (condType /= SimpleType Bool)
+        (throwError "incompatible type in if expression")
       let exprVal = fastEvalBool expr
       case exprVal of
         Nothing
-          | stmtType == NoRetType || stmtType == expectedType  ->
+          | stmtType == NoRetType || stmtType == expectedType ->
             getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
         (Just True)
           | stmtType == NoRetType || stmtType == expectedType ->
@@ -373,9 +381,9 @@ getExprType expr =
       eType1 <- getExprType expr1
       eType2 <- getExprType expr2
       if (eType1 /= eType2)
-        then (throwError $ "cannot compare type " ++ show eType1 ++ " with" ++ show eType2)
+        then (throwError $
+              "cannot compare type " ++ show eType1 ++ " with" ++ show eType2)
         else return $ SimpleType Bool
-    
     EAnd expr1 expr2 -> do
       eType1 <- getExprType expr1
       eType2 <- getExprType expr2
