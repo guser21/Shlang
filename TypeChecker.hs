@@ -25,7 +25,7 @@ instance Show ValType where
   show v =
     case v of
       FunType _    -> "function"
-      NoRetType    -> "np return type"
+      NoRetType    -> "no return type"
       SimpleType t -> show t
 
 type Loc = Integer
@@ -231,24 +231,29 @@ getStmtType (stmt:tl) expectedType =
              (\res -> return $ SimpleType Void : res)
     Print expr ->
       getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+    
     Cond expr stmt -> do
       stmtType <- getBlockType (Block [stmt]) expectedType
-      if (stmtType == NoRetType && expectedType == SimpleType Void) ||
-         (stmtType == expectedType)
-        then getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-        else throwError
-               ("incompatible return type in if statement" ++ show stmtType)
+      let exprVal = fastEvalBool expr
+      case exprVal of 
+        Nothing | stmtType == NoRetType || stmtType == expectedType -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+        (Just True) | stmtType == NoRetType || stmtType == expectedType -> getStmtType tl expectedType >>= (\res -> return $ stmtType : res)
+        (Just False) | stmtType == NoRetType || stmtType == expectedType -> getStmtType tl expectedType
+        _ -> throwError ("incompatible return type in if statement " ++ show stmtType)
+
     CondElse expr stmt1 stmt2 -> do
       type1 <- getBlockType (Block [stmt1]) expectedType
       type2 <- getBlockType (Block [stmt2]) expectedType
-      if (type1 == type2) && (expectedType == type1)
-        then getStmtType tl expectedType >>= (\res -> return $ type1 : res)
-        else if (type1 == NoRetType || type1 == SimpleType Void) &&
-                (type2 == NoRetType || type2 == SimpleType Void) &&
-                (expectedType == SimpleType Void)
-               then getStmtType tl expectedType >>=
-                    (\res -> return $ SimpleType Void : res)
-               else throwError "incompatible return type in if else condition"
+      case fastEvalBool expr of
+        Just True -> getStmtType tl expectedType >>= (\res -> return $ type1 : res)
+        Just False ->getStmtType tl expectedType >>= (\res -> return $ type2 : res)
+        Nothing ->case (type1, type2) of 
+          (NoRetType,NoRetType) -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+          (_,NoRetType) | type1 == expectedType -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+          (NoRetType,_) | type2 == expectedType -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+          (t1,t2) | t1==t2 && t1==expectedType -> getStmtType tl expectedType >>= (\res -> return $ t1 : res)
+          _ -> throwError "incompatible return type in if else condition" 
+      
     While expr stmt -> do
       exprType <- getExprType expr
       stmtType <- getBlockType (Block [stmt]) expectedType
@@ -272,6 +277,13 @@ getStmtType (stmt:tl) expectedType =
         (stmtType /= expectedType && stmtType /= NoRetType)
         (throwError "wrong return type in the for block")
       getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+
+
+fastEvalBool :: Expr -> Maybe Bool
+fastEvalBool expr = case expr of 
+  ELitTrue -> Just True
+  ELitFalse -> Just False
+  _ -> Nothing
 
 getExprType :: Expr -> Result ValType
 getExprType expr =
