@@ -29,7 +29,9 @@ int main (){
 	// return x*factorial(x-1);
 	for(int i=1 to 10){
 		print(i);
-		i++;
+		// i++;
 	}
+	int i=10;
+	i++;
 	return 0;
 }
