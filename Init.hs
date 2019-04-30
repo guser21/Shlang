@@ -16,6 +16,8 @@ import           EvaluateProgram
 
 import           ErrM
 
+import           TypeChecker        (checkProgramTypesIO)
+
 type ParseFun a = [Token] -> Err a
 
 type Verbosity = Int
@@ -37,4 +39,8 @@ main = do
       putStrLn "Tokens:"
       putStrLn s
       exitFailure
-    Ok tree -> runProgramIO tree
+    Ok tree -> do
+      correctTypes <- checkProgramTypesIO tree
+      if correctTypes
+        then runProgramIO tree
+        else exitFailure

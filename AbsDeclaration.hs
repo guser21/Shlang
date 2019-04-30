@@ -7,7 +7,13 @@ module AbsDeclaration where
 
 
 
-newtype Ident = Ident String deriving (Eq, Ord, Show, Read)
+newtype Ident = Ident String deriving (Eq, Ord, Read)
+
+instance Show Ident where 
+  show (Ident str) = str
+
+
+
 data Program = Program [TopDef]
   deriving (Eq, Ord, Show, Read)
 
