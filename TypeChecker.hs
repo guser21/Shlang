@@ -75,9 +75,8 @@ typeDefault type_ =
     Str  -> return $ SimpleType Str
     _    -> throwError "unrecognized type"
 
-getIdentFromItem (NoInit ident) = ident
+getIdentFromItem (NoInit ident)    = ident
 getIdentFromItem (Init ident expr) = ident
-
 
 declValue :: Ident -> Result ValType -> Result (Result a -> Result a)
 declValue nameIdent resVal = do
@@ -92,7 +91,6 @@ declValue nameIdent resVal = do
     (local
        (\(env, constNames, shadowVar) ->
           (Map.insert nameIdent l env, constNames, shadowVar)))
-
 
 mainFunc = Ident "main"
 
@@ -140,141 +138,131 @@ markOvershadowable (nameLocks, consts, _) =
 getStmtType :: [Stmt] -> ValType -> Result [ValType]
 --todo declare in environment
 getStmtType [] expectedType = return [NoRetType]
-getStmtType (stmt:tl) expectedType =
-  case stmt of
-    Empty -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-    BStmt block -> do
-      btype <- local markOvershadowable (getBlockType block expectedType)
-      --todo local run
-      getStmtType tl expectedType >>= (\res -> return $ btype : res)
-    Decl type_ items -> do
-      typeCheck <-
-        foldl
-          (\acc it ->
-             case it of
-               NoInit ident -> acc
-               Init ident expr -> do
-                 (SimpleType exprType) <- getExprType expr
-                 acc >>=
-                   (\accVal ->
-                      return $
-                      not (exprType == Void || exprType /= type_) && accVal))
-          (return True)
-          items
-      when
-        (not typeCheck)
-        (throwError $ "incorrect declaration of type " ++ show type_)
-      let definedType =typeDefault type_ 
-      case items of
-        (h:tailItems) ->
-          let ident= getIdentFromItem h in
-          ((declValue ident definedType) >>=
-           (\cont ->
-              cont (getStmtType ((Decl type_ (tail items)) : tl) expectedType))) >>=
-          (\res -> return $ NoRetType : res)
-        [] ->
+getStmtType (Empty:tl) expectedType =
+  getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (BStmt block:tl) expectedType = do
+  btype <- local markOvershadowable (getBlockType block expectedType)
+  getStmtType tl expectedType >>= (\res -> return $ btype : res)
+getStmtType (Decl type_ items:tl) expectedType = do
+  typeCheck <-
+    foldl
+      (\acc it ->
+         case it of
+           NoInit ident -> acc
+           Init ident expr -> do
+             (SimpleType exprType) <- getExprType expr
+             acc >>=
+               (\accVal ->
+                  return $ not (exprType == Void || exprType /= type_) && accVal))
+      (return True)
+      items
+  when
+    (not typeCheck)
+    (throwError $ "incorrect declaration of type " ++ show type_)
+  let definedType = typeDefault type_
+  case items of
+    (h:tailItems) ->
+      let ident = getIdentFromItem h
+       in do cont <- declValue ident definedType
+             res <-
+               cont (getStmtType (Decl type_ (tail items) : tl) expectedType)
+             return $ NoRetType : res
+    [] -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (DeclBlock type_ items:tl) expectedType =
+  throwError "not implemented"
+getStmtType (Ass ident expr:tl) expectedType = do
+  identType <- getTypeByIdent ident
+  exprType <- getExprType expr
+  if identType /= exprType
+    then throwError $
+         "cannot assgin " ++
+         show exprType ++ " value to variable " ++ show ident
+    else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (Incr ident:tl) expectedType = do
+  identType <- getTypeByIdent ident
+  if identType /= SimpleType Int
+    then throwError $ "cannot increment type " ++ show identType
+    else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (Decr ident:tl) expectedType = do
+  identType <- getTypeByIdent ident
+  if identType /= SimpleType Int
+    then throwError $ "cannot decrement type " ++ show identType
+    else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (Ret expr:tl) expectedType = do
+  exprType <- getExprType expr
+  if exprType /= expectedType
+    then throwError $ "incompatible function return type with " ++ show exprType
+    else getStmtType tl expectedType >>= (\res -> return $ exprType : res)
+getStmtType (VRet:tl) expectedType =
+  if expectedType /= SimpleType Void
+    then throwError "incompatible function type with return type void"
+    else getStmtType tl expectedType >>=
+         (\res -> return $ SimpleType Void : res)
+getStmtType (Print expr:tl) expectedType =
+  getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (Cond expr stmt:tl) expectedType = do
+  stmtType <- getBlockType (Block [stmt]) expectedType
+  condType <- getExprType expr
+  when
+    (condType /= SimpleType Bool)
+    (throwError "incompatible type in if expression")
+  let exprVal = fastEvalBool expr
+  case exprVal of
+    Nothing
+      | stmtType == NoRetType || stmtType == expectedType ->
+        getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+    (Just True)
+      | stmtType == NoRetType || stmtType == expectedType ->
+        getStmtType tl expectedType >>= (\res -> return $ stmtType : res)
+    (Just False)
+      | stmtType == NoRetType || stmtType == expectedType ->
+        getStmtType tl expectedType
+    _ ->
+      throwError ("incompatible return type in if statement " ++ show stmtType)
+getStmtType (While expr stmt:tl) expectedType = do
+  exprType <- getExprType expr
+  stmtType <- getBlockType (Block [stmt]) expectedType
+  when
+    (exprType /= SimpleType Bool)
+    (throwError "incompatible expression type in while condition")
+  when
+    (stmtType /= NoRetType && stmtType /= expectedType)
+    (throwError "incompatible return type in while statement")
+  getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (SExp expr:tl) expectedType =
+  getExprType expr >> getStmtType tl expectedType >>=
+  (\res -> return $ NoRetType : res)
+getStmtType (ConstFor type_ ident exprFrom exprTo stmt:tl) expectedType = do
+  fromType <- getExprType exprFrom
+  toType <- getExprType exprTo
+  stmtType <- getBlockType (Block [stmt]) expectedType
+  when
+    (fromType /= SimpleType Int || toType /= SimpleType Int)
+    (throwError "for bounds must be of type int")
+  when
+    (stmtType /= expectedType && stmtType /= NoRetType)
+    (throwError "wrong return type in the for block")
+  getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (CondElse expr stmt1 stmt2:tl) expectedType = do
+  type1 <- getBlockType (Block [stmt1]) expectedType
+  type2 <- getBlockType (Block [stmt2]) expectedType
+  case fastEvalBool expr of
+    Just True -> getStmtType tl expectedType >>= (\res -> return $ type1 : res)
+    Just False -> getStmtType tl expectedType >>= (\res -> return $ type2 : res)
+    Nothing ->
+      case (type1, type2) of
+        (NoRetType, NoRetType) ->
           getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-    DeclBlock type_ items -> throwError "not implemented"
-    Ass ident expr -> do
-      identType <- getTypeByIdent ident
-      exprType <- getExprType expr
-      if identType /= exprType
-        then throwError $
-             "cannot assgin " ++
-             show exprType ++ " value to variable " ++ show ident
-        else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-    Incr ident -> do
-      identType <- getTypeByIdent ident
-      if identType /= SimpleType Int
-        then throwError $ "cannot increment type " ++ show identType
-        else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-    Decr ident -> do
-      identType <- getTypeByIdent ident
-      if identType /= SimpleType Int
-        then throwError $ "cannot decrement type " ++ show identType
-        else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-    Ret expr -> do
-      exprType <- getExprType expr
-      if exprType /= expectedType
-        then throwError $
-             "incompatible function return type with " ++ show exprType
-        else getStmtType tl expectedType >>= (\res -> return $ exprType : res)
-    VRet ->
-      if expectedType /= SimpleType Void
-        then throwError "incompatible function type with return type void"
-        else getStmtType tl expectedType >>=
-             (\res -> return $ SimpleType Void : res)
-    Print expr ->
-      getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-    Cond expr stmt -> do
-      stmtType <- getBlockType (Block [stmt]) expectedType
-      condType <- getExprType expr
-      when
-        (condType /= SimpleType Bool)
-        (throwError "incompatible type in if expression")
-      let exprVal = fastEvalBool expr
-      case exprVal of
-        Nothing
-          | stmtType == NoRetType || stmtType == expectedType ->
+        (_, NoRetType)
+          | type1 == expectedType ->
             getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-        (Just True)
-          | stmtType == NoRetType || stmtType == expectedType ->
-            getStmtType tl expectedType >>= (\res -> return $ stmtType : res)
-        (Just False)
-          | stmtType == NoRetType || stmtType == expectedType ->
-            getStmtType tl expectedType
-        _ ->
-          throwError
-            ("incompatible return type in if statement " ++ show stmtType)
-    CondElse expr stmt1 stmt2 -> do
-      type1 <- getBlockType (Block [stmt1]) expectedType
-      type2 <- getBlockType (Block [stmt2]) expectedType
-      case fastEvalBool expr of
-        Just True ->
-          getStmtType tl expectedType >>= (\res -> return $ type1 : res)
-        Just False ->
-          getStmtType tl expectedType >>= (\res -> return $ type2 : res)
-        Nothing ->
-          case (type1, type2) of
-            (NoRetType, NoRetType) ->
-              getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-            (_, NoRetType)
-              | type1 == expectedType ->
-                getStmtType tl expectedType >>=
-                (\res -> return $ NoRetType : res)
-            (NoRetType, _)
-              | type2 == expectedType ->
-                getStmtType tl expectedType >>=
-                (\res -> return $ NoRetType : res)
-            (t1, t2)
-              | t1 == t2 && t1 == expectedType ->
-                getStmtType tl expectedType >>= (\res -> return $ t1 : res)
-            _ -> throwError "incompatible return type in if else condition"
-    While expr stmt -> do
-      exprType <- getExprType expr
-      stmtType <- getBlockType (Block [stmt]) expectedType
-      when
-        (exprType /= SimpleType Bool)
-        (throwError "incompatible expression type in while condition")
-      when
-        (stmtType /= NoRetType && stmtType /= expectedType)
-        (throwError "incompatible return type in while statement")
-      getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-    SExp expr ->
-      getExprType expr >> getStmtType tl expectedType >>=
-      (\res -> return $ NoRetType : res)
-    --tooo add ident to const variables
-    ConstFor type_ ident exprFrom exprTo stmt -> do
-      fromType <- getExprType exprFrom
-      toType <- getExprType exprTo
-      stmtType <- getBlockType (Block [stmt]) expectedType
-      when
-        (fromType /= SimpleType Int || toType /= SimpleType Int)
-        (throwError "for bounds must be of type int")
-      when
-        (stmtType /= expectedType && stmtType /= NoRetType)
-        (throwError "wrong return type in the for block")
-      getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+        (NoRetType, _)
+          | type2 == expectedType ->
+            getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+        (t1, t2)
+          | t1 == t2 && t1 == expectedType ->
+            getStmtType tl expectedType >>= (\res -> return $ t1 : res)
+        _ -> throwError "incompatible return type in if else condition"
 
 fastEvalBool :: Expr -> Maybe Bool
 fastEvalBool expr =
@@ -284,85 +272,82 @@ fastEvalBool expr =
     _         -> Nothing
 
 getExprType :: Expr -> Result ValType
-getExprType expr =
-  case expr of
-    EVar ident -> getTypeByIdent ident
-    ELitInt integer -> return $ SimpleType Int
-    ELitTrue -> return $ SimpleType Bool
-    ELitFalse -> return $ SimpleType Bool
-    EApp ident exprs -> do
-      (FunType (FnDef type_ ident args block)) <- getTypeByIdent ident
-      let argTypes = map (\(Arg type_ ident) -> SimpleType type_) args
-      let exprAndTypes = zip exprs argTypes
-      if length args /= length exprs
-        then throwError $
-             "wrong number of arguments supplied in funciton " ++ show ident
-        else foldl
-               (\acc (expr, type_) -> do
-                  exprType <- getExprType expr
-                  if exprType /= type_
-                    then throwError $
-                         "wrong argument type in function " ++ show ident
-                    else return ())
-               (return ())
-               exprAndTypes
-      return $ SimpleType type_
-    EString string -> return $ SimpleType Str
-    Neg expr -> do
-      eType <- getExprType expr
+getExprType (EVar ident) = getTypeByIdent ident
+getExprType (ELitInt integer) = return $ SimpleType Int
+getExprType ELitTrue = return $ SimpleType Bool
+getExprType ELitFalse = return $ SimpleType Bool
+getExprType (EApp ident exprs) = do
+  (FunType (FnDef type_ ident args block)) <- getTypeByIdent ident
+  let argTypes = map (\(Arg type_ ident) -> SimpleType type_) args
+  let exprAndTypes = zip exprs argTypes
+  if length args /= length exprs
+    then throwError $
+         "wrong number of arguments supplied in funciton " ++ show ident
+    else foldl
+           (\acc (expr, type_) -> do
+              exprType <- getExprType expr
+              if exprType /= type_
+                then throwError $
+                     "wrong argument type in function " ++ show ident
+                else return ())
+           (return ())
+           exprAndTypes
+  return $ SimpleType type_
+getExprType (EString string) = return $ SimpleType Str
+getExprType (Neg expr) = do
+  eType <- getExprType expr
+  when
+    (eType /= SimpleType Int)
+    (throwError $ "cannot negate an expression of type " ++ show eType)
+  return $ SimpleType Int
+getExprType (Not expr) = do
+  eType <- getExprType expr
+  when
+    (eType /= SimpleType Bool)
+    (throwError $ "cannot invert an expression of type " ++ show eType)
+  return $ SimpleType Bool
+getExprType (EMul expr1 mulop expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  when
+    (eType1 /= SimpleType Int || eType2 /= SimpleType Int)
+    (throwError $
+     "invalid operation with type " ++ show eType1 ++ " " ++ show eType2)
+  return $ SimpleType Int
+getExprType (EAdd expr1 addop expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  case addop of
+    Plus ->
       when
-        (eType /= SimpleType Int)
-        (throwError $ "cannot negate an expression of type " ++ show eType)
-      return $ SimpleType Int
-    Not expr -> do
-      eType <- getExprType expr
-      when
-        (eType /= SimpleType Bool)
-        (throwError $ "cannot invert an expression of type " ++ show eType)
-      return $ SimpleType Bool
-    EMul expr1 mulop expr2 -> do
-      eType1 <- getExprType expr1
-      eType2 <- getExprType expr2
-      when
-        (eType1 /= SimpleType Int || eType2 /= SimpleType Int)
+        (not
+           ((eType1 == SimpleType Int && eType2 == SimpleType Int) ||
+            (eType1 == SimpleType Str && eType2 == SimpleType Str)))
         (throwError $
-         "invalid operation with type " ++ show eType1 ++ " " ++ show eType2)
-      return $ SimpleType Int
-    EAdd expr1 addop expr2 -> do
-      eType1 <- getExprType expr1
-      eType2 <- getExprType expr2
-      case addop of
-        Plus ->
-          when
-            (not
-               ((eType1 == SimpleType Int && eType2 == SimpleType Int) ||
-                (eType1 == SimpleType Str && eType2 == SimpleType Str)))
-            (throwError $
-             "cannot add expressions of type " ++
-             show eType1 ++ " " ++ show eType2)
-        Minus ->
-          when
-            (not (eType1 == SimpleType Int && eType2 == SimpleType Int))
-            (throwError $
-             "cannot subtract expressions of type " ++
-             show eType1 ++ " " ++ show eType2)
-      return eType1
-    ERel expr1 relop expr2 -> do
-      eType1 <- getExprType expr1
-      eType2 <- getExprType expr2
-      if eType1 /= eType2
-        then throwError $
-             "cannot compare type " ++ show eType1 ++ " with" ++ show eType2
-        else return $ SimpleType Bool
-    EAnd expr1 expr2 -> do
-      eType1 <- getExprType expr1
-      eType2 <- getExprType expr2
+         "cannot add expressions of type " ++ show eType1 ++ " " ++ show eType2)
+    Minus ->
       when
-        (not (eType1 == eType2 || eType1 /= SimpleType Bool))
+        (not (eType1 == SimpleType Int && eType2 == SimpleType Int))
         (throwError $
-         "invalidOperation with type " ++ show eType1 ++ " with" ++ show eType2)
-      return $ SimpleType Bool
-    EOr expr1 expr2 -> getExprType (EAnd expr1 expr2)
+         "cannot subtract expressions of type " ++
+         show eType1 ++ " " ++ show eType2)
+  return eType1
+getExprType (ERel expr1 relop expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  if eType1 /= eType2
+    then throwError $
+         "cannot compare type " ++ show eType1 ++ " with" ++ show eType2
+    else return $ SimpleType Bool
+getExprType (EAnd expr1 expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  when
+    (not (eType1 == eType2 || eType1 /= SimpleType Bool))
+    (throwError $
+     "invalidOperation with type " ++ show eType1 ++ " with" ++ show eType2)
+  return $ SimpleType Bool
+getExprType (EOr expr1 expr2) = getExprType (EAnd expr1 expr2)
 
 checkProgramTypesIO :: Program -> IO Bool
 checkProgramTypesIO prog = do
