@@ -32,7 +32,9 @@ type Loc = Integer
 
 type ConstIdent = Set.Set Ident
 
-type Env = (Map.Map Ident Loc, ConstIdent)
+type OverShadowableIdent = Set.Set Ident
+
+type Env = (Map.Map Ident Loc, ConstIdent, OverShadowableIdent)
 
 type Mem = Map.Map Loc ValType
 
@@ -58,7 +60,7 @@ getTypeByLoc loc = do
 
 getTypeByIdent :: Ident -> Result ValType
 getTypeByIdent var = do
-  (env, _) <- ask
+  (env, _, _) <- ask
   (st, l) <- get
   let varLoc = Map.lookup var env
   case varLoc of
@@ -67,7 +69,7 @@ getTypeByIdent var = do
 
 modifyVariable :: Ident -> (ValType -> ValType) -> Result ()
 modifyVariable var f = do
-  (env, constNames) <- ask
+  (env, constNames, _) <- ask
   (st, l) <- get
   let (Ident varname) = var
   let varLoc = Map.lookup var env
@@ -102,22 +104,25 @@ declIdents =
 
 declValue :: Ident -> Result ValType -> Result (Result a -> Result a)
 declValue nameIdent resVal = do
-  (env, constName) <-ask
-  when (Map.member nameIdent env) (throwError $ "name " ++ show nameIdent ++ " is already in use")
+  (env, constName, shadowable) <- ask
+  when
+    (Set.notMember nameIdent shadowable && Map.member nameIdent env)
+    (throwError $ "name " ++ show nameIdent ++ " is already in use")
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
   return
-    (local (\(env, constNames) -> (Map.insert nameIdent l env, constNames)))
+    (local
+       (\(env, constNames, shadowVar) ->
+          (Map.insert nameIdent l env, constNames, shadowVar)))
 
 declValueList :: [Ident] -> [Result ValType] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
   declCont <- declValue fn fv
   declNextCont <- declValueList nameIdents values
   return $ declCont . declNextCont
-  -- declCont (declValueList nameIdents values)
 
-  
+
 declValueList [] [] = return (local id)
 declValueList [] (h:t) = throwError "Mismatching argument list size"
 declValueList (h:t) [] = throwError "Mismatching argument list size"
@@ -127,17 +132,6 @@ declTypeInit type_ = map (\it -> typeDefault type_)
 
 mainFunc = Ident "main"
 
-checkProgramTypesIO :: Program -> IO Bool
-checkProgramTypesIO prog = do
-  ans <-
-    runExceptT
-      (runStateT
-         (runReaderT (checkTypes prog) (Map.empty, Set.empty))
-         (Map.empty, 0))
-  case ans of
-    (Left errMesg) -> putStrLn ("Type error: " ++ errMesg) >> return False
-    _              -> return True --ended as supposed
-
 checkTypes :: Program -> Result ()
 checkTypes (Program topDefs) = checkAllFunctions topDefs
 
@@ -146,18 +140,17 @@ checkAllFunctions (h:tl) = do
   declCont <- declValue ident (return $ FunType h)
   declCont (checkAllFunctions tl)
 checkAllFunctions [] = do
-  (env, constName) <- ask
+  (env, constName, _) <- ask
   traverse_
     (\(_, loc) -> getTypeByLoc loc >>= (checkFunction . fun))
     (Map.toList env)
 
 checkFunction :: TopDef -> Result Bool
 checkFunction (FnDef retType ident argDefs block) = do
-  let argIdents = map (\(Arg argType argIdent) -> argIdent) argDefs
-  let argTypes = map (\(Arg argType argIdent) -> typeDefault argType) argDefs
-  funArgDeclCont <- declValueList argIdents argTypes
+  let argDecl = map (\(Arg argType argIdent) -> Decl argType [NoInit argIdent]) argDefs
   --todo check more if at least one return statement exists
-  btype <- funArgDeclCont (getBlockType block (SimpleType retType))
+  let Block stmts = block
+  btype <- getBlockType (Block $ argDecl++stmts) (SimpleType retType)
   if btype == SimpleType retType || (btype == NoRetType && retType == Void)
     then return True
     else throwError $ "function " ++ show ident ++ " has a wrong return type"
@@ -176,6 +169,9 @@ getBlockType (Block stmts) expectedType = do
       NoRetType
       stmtTypes
 
+markOvershadowable (nameLocks, consts, _) =
+  (nameLocks, consts, Set.fromList $ Map.keys nameLocks)
+
 getStmtType :: [Stmt] -> ValType -> Result [ValType]
 --todo declare in environment
 getStmtType [] expectedType = return [NoRetType]
@@ -183,10 +179,11 @@ getStmtType (stmt:tl) expectedType =
   case stmt of
     Empty -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
     BStmt block -> do
-      btype <- getBlockType block expectedType
+      btype <- local markOvershadowable (getBlockType block expectedType)
       --todo local run
-      local id (getStmtType tl expectedType) >>= (\res -> return $ btype : res)
+      getStmtType tl expectedType >>= (\res -> return $ btype : res)
     Decl type_ items -> do
+      
       typeCheck <-
         foldl
           (\acc it ->
@@ -194,17 +191,21 @@ getStmtType (stmt:tl) expectedType =
                NoInit ident -> acc
                Init ident expr -> do
                  (SimpleType exprType) <- getExprType expr
-                 accVal <- acc
-                 return
-                   ((not (exprType == Void || exprType /= type_)) && accVal))
+                 acc >>=
+                   (\accVal ->
+                      return $
+                      not (exprType == Void || exprType /= type_) && accVal))
           (return True)
           items
       when
         (not typeCheck)
         (throwError $ "incorrect declaration of type " ++ show type_)
-      declCont <- declValueList (declIdents items) (declTypeInit type_ items)
-      returnTypes <- declCont (getStmtType tl expectedType)
-      return $ NoRetType : returnTypes
+      let idents= declIdents items
+      let vals= declTypeInit type_ items
+      case (idents, vals) of 
+        (fi:rident,fv:rvals) -> ( (declValue fi fv) >>= (\cont ->cont  (getStmtType ((Decl type_ (tail items) ):tl) expectedType))) >>= (\res -> return $ NoRetType : res)
+        (_,_) ->  getStmtType tl expectedType >>= (\res ->return $ NoRetType : res)
+
     DeclBlock type_ items -> throwError "not implemented"
     Ass ident expr -> do
       identType <- getTypeByIdent ident
@@ -294,6 +295,7 @@ getStmtType (stmt:tl) expectedType =
     SExp expr ->
       getExprType expr >> getStmtType tl expectedType >>=
       (\res -> return $ NoRetType : res)
+    --tooo add ident to const variables
     ConstFor type_ ident exprFrom exprTo stmt -> do
       fromType <- getExprType exprFrom
       toType <- getExprType exprTo
@@ -380,9 +382,9 @@ getExprType expr =
     ERel expr1 relop expr2 -> do
       eType1 <- getExprType expr1
       eType2 <- getExprType expr2
-      if (eType1 /= eType2)
-        then (throwError $
-              "cannot compare type " ++ show eType1 ++ " with" ++ show eType2)
+      if eType1 /= eType2
+        then throwError $
+             "cannot compare type " ++ show eType1 ++ " with" ++ show eType2
         else return $ SimpleType Bool
     EAnd expr1 expr2 -> do
       eType1 <- getExprType expr1
@@ -393,3 +395,14 @@ getExprType expr =
          "invalidOperation with type " ++ show eType1 ++ " with" ++ show eType2)
       return $ SimpleType Bool
     EOr expr1 expr2 -> getExprType (EAnd expr1 expr2)
+
+checkProgramTypesIO :: Program -> IO Bool
+checkProgramTypesIO prog = do
+  ans <-
+    runExceptT
+      (runStateT
+         (runReaderT (checkTypes prog) (Map.empty, Set.empty, Set.empty))
+         (Map.empty, 0))
+  case ans of
+    (Left errMesg) -> putStrLn ("Type error: " ++ errMesg) >> return False
+    _              -> return True --ended as supposed
