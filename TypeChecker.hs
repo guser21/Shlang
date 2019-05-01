@@ -136,7 +136,6 @@ markOvershadowable (nameLocks, consts, _) =
   (nameLocks, consts, Set.fromList $ Map.keys nameLocks)
 
 getStmtType :: [Stmt] -> ValType -> Result [ValType]
---todo declare in environment
 getStmtType [] expectedType = return [NoRetType]
 getStmtType (Empty:tl) expectedType =
   getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)

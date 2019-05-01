@@ -1,9 +1,8 @@
-detect stack overflow
-short circuit evaluation
-type inference 
-runtime exception ???
-typechecker
-final keyword
+- detect stack overflow
+- type inference 
+? runtime exception ???
 
-repeating argument name
-bad015
++ typechecker
++ short circuit evaluation
+? final keyword
+
