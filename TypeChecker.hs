@@ -67,18 +67,6 @@ getTypeByIdent var = do
     Just loc -> getTypeByLoc loc
     Nothing  -> throwError $ "unknown indentificator " ++ show var
 
-modifyVariable :: Ident -> (ValType -> ValType) -> Result ()
-modifyVariable var f = do
-  (env, constNames, _) <- ask
-  (st, l) <- get
-  let (Ident varname) = var
-  let varLoc = Map.lookup var env
-  if Set.member var constNames
-    then throwError $ "cannot modify const variable " ++ varname
-    else (case varLoc of
-            Just loc -> getTypeByLoc loc >>= (modifyMem . Map.insert loc . f)
-            Nothing  -> throwError $ "unknown indentificator " ++ show var)
-
 typeDefault :: Type -> Result ValType
 typeDefault type_ =
   case type_ of
@@ -87,20 +75,9 @@ typeDefault type_ =
     Str  -> return $ SimpleType Str
     _    -> throwError "unrecognized type"
 
-declVars :: Type -> [Ident] -> Result (Result a -> Result a)
-declVars type_ nameIdents =
-  declValueList nameIdents (map (\_ -> typeDefault type_) nameIdents)
+getIdentFromItem (NoInit ident) = ident
+getIdentFromItem (Init ident expr) = ident
 
-declVar :: Type -> Ident -> Result (Result a -> Result a)
-declVar type_ nameIdent = declValue nameIdent (typeDefault type_)
-
-declIdents :: [Item] -> [Ident]
-declIdents =
-  map
-    (\it ->
-       case it of
-         NoInit ident    -> ident
-         Init ident expr -> ident)
 
 declValue :: Ident -> Result ValType -> Result (Result a -> Result a)
 declValue nameIdent resVal = do
@@ -116,19 +93,6 @@ declValue nameIdent resVal = do
        (\(env, constNames, shadowVar) ->
           (Map.insert nameIdent l env, constNames, shadowVar)))
 
-declValueList :: [Ident] -> [Result ValType] -> Result (Result a -> Result a)
-declValueList (fn:nameIdents) (fv:values) = do
-  declCont <- declValue fn fv
-  declNextCont <- declValueList nameIdents values
-  return $ declCont . declNextCont
-
-
-declValueList [] [] = return (local id)
-declValueList [] (h:t) = throwError "Mismatching argument list size"
-declValueList (h:t) [] = throwError "Mismatching argument list size"
-
-declTypeInit :: Type -> [Item] -> [Result ValType]
-declTypeInit type_ = map (\it -> typeDefault type_)
 
 mainFunc = Ident "main"
 
@@ -147,10 +111,11 @@ checkAllFunctions [] = do
 
 checkFunction :: TopDef -> Result Bool
 checkFunction (FnDef retType ident argDefs block) = do
-  let argDecl = map (\(Arg argType argIdent) -> Decl argType [NoInit argIdent]) argDefs
+  let argDecl =
+        map (\(Arg argType argIdent) -> Decl argType [NoInit argIdent]) argDefs
   --todo check more if at least one return statement exists
   let Block stmts = block
-  btype <- getBlockType (Block $ argDecl++stmts) (SimpleType retType)
+  btype <- getBlockType (Block $ argDecl ++ stmts) (SimpleType retType)
   if btype == SimpleType retType || (btype == NoRetType && retType == Void)
     then return True
     else throwError $ "function " ++ show ident ++ " has a wrong return type"
@@ -183,7 +148,6 @@ getStmtType (stmt:tl) expectedType =
       --todo local run
       getStmtType tl expectedType >>= (\res -> return $ btype : res)
     Decl type_ items -> do
-      
       typeCheck <-
         foldl
           (\acc it ->
@@ -200,12 +164,16 @@ getStmtType (stmt:tl) expectedType =
       when
         (not typeCheck)
         (throwError $ "incorrect declaration of type " ++ show type_)
-      let idents= declIdents items
-      let vals= declTypeInit type_ items
-      case (idents, vals) of 
-        (fi:rident,fv:rvals) -> ( (declValue fi fv) >>= (\cont ->cont  (getStmtType ((Decl type_ (tail items) ):tl) expectedType))) >>= (\res -> return $ NoRetType : res)
-        (_,_) ->  getStmtType tl expectedType >>= (\res ->return $ NoRetType : res)
-
+      let definedType =typeDefault type_ 
+      case items of
+        (h:tailItems) ->
+          let ident= getIdentFromItem h in
+          ((declValue ident definedType) >>=
+           (\cont ->
+              cont (getStmtType ((Decl type_ (tail items)) : tl) expectedType))) >>=
+          (\res -> return $ NoRetType : res)
+        [] ->
+          getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
     DeclBlock type_ items -> throwError "not implemented"
     Ass ident expr -> do
       identType <- getTypeByIdent ident
