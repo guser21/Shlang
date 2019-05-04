@@ -38,8 +38,8 @@ The reserved words used in declaration are the following:
   | ``void`` | ``while`` |  | 
 
 The symbols used in declaration are the following:
-  | ( | ) | , | {
-  | } | ; | = | ++
+  | ( | ) | ; | ,
+  | { | } | = | ++
   | -- | - | ! | &&
   | || | + | * | /
   | % | < | <= | >
@@ -56,6 +56,7 @@ All other symbols are terminals.
 
   | //Program// | -> | //[TopDef]// 
   | //TopDef// | -> | //Type// //Ident// ``(`` //[Arg]// ``)`` //Block// 
+  |  |  **|**  | //Type// //[Item]// ``;`` 
   | //[TopDef]// | -> | //TopDef// 
   |  |  **|**  | //TopDef// //[TopDef]// 
   | //Arg// | -> | //Type// //Ident// 

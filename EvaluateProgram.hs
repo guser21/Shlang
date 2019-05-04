@@ -119,9 +119,13 @@ runProgram (Program topDefs) = runFunctions topDefs
 
 runFunctions :: [TopDef] -> Result ()
 runFunctions (h:tl) = do
-  let FnDef reType ident args block = h
-  declCont <- declValue ident (return $ FunVal h)
+  declCont <-
+    case h of
+      FnDef reType ident args block -> declValue ident (return $ FunVal h)
+      GlobDecl type_ items ->
+        declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
+
 runFunctions [] = do
   (env, _) <- ask
   case Map.lookup mainFunc env of
@@ -187,7 +191,7 @@ evalBlock (h:tl) =
     Empty -> evalBlock tl
   --TODO simplify
   --TODO remove allocated locs after exiting block
-  --run local 
+  --run local
     BStmt (Block stmts) -> do
       blockRes <- local id (evalBlock stmts)
       case blockRes of

@@ -66,6 +66,7 @@ Program :: { Program }
 Program : ListTopDef { AbsDeclaration.Program $1 }
 TopDef :: { TopDef }
 TopDef : Type Ident '(' ListArg ')' Block { AbsDeclaration.FnDef $1 $2 $4 $6 }
+       | Type ListItem ';' { AbsDeclaration.GlobDecl $1 $2 }
 ListTopDef :: { [TopDef] }
 ListTopDef : TopDef { (:[]) $1 } | TopDef ListTopDef { (:) $1 $2 }
 Arg :: { Arg }

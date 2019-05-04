@@ -95,12 +95,22 @@ declValue nameIdent resVal = do
 mainFunc = Ident "main"
 
 checkTypes :: Program -> Result ()
-checkTypes (Program topDefs) = checkAllFunctions topDefs
+checkTypes (Program topDefs) = do
+  --todo find a better way of doing this
+  let globalDefs = filter (\el -> case el of  {GlobDecl type_ items -> True; _ -> False})  topDefs
+  let functions = filter (\el -> case el of  {FnDef reType ident args b -> True; _ -> False}) topDefs
+  checkAllGlobalDefs globalDefs >> checkAllFunctions functions
 
-checkAllFunctions (h:tl) = do
-  let FnDef reType ident args block = h
-  declCont <- declValue ident (return $ FunType h)
-  declCont (checkAllFunctions tl)
+
+checkAllGlobalDefs globalDefs =do
+  let declList= map (\(GlobDecl type_ items)-> Decl type_ items) globalDefs
+  getStmtType declList NoRetType
+
+checkAllFunctions (h:tl) =
+  case h of
+    FnDef reType ident args block -> do
+      declCont <- declValue ident (return $ FunType h)
+      declCont (checkAllFunctions tl)
 checkAllFunctions [] = do
   (env, constName, _) <- ask
   traverse_
@@ -111,15 +121,12 @@ checkFunction :: TopDef -> Result Bool
 checkFunction (FnDef retType ident argDefs block) = do
   let argDecl =
         map (\(Arg argType argIdent) -> Decl argType [NoInit argIdent]) argDefs
-  --todo check more if at least one return statement exists
   let Block stmts = block
   btype <- getBlockType (Block $ argDecl ++ stmts) (SimpleType retType)
   if btype == SimpleType retType || (btype == NoRetType && retType == Void)
     then return True
     else throwError $ "function " ++ show ident ++ " has a wrong return type"
 
---catch missmatching argument list size
---todo
 getBlockType :: Block -> ValType -> Result ValType
 getBlockType (Block stmts) expectedType = do
   stmtTypes <- getStmtType stmts expectedType
@@ -135,6 +142,18 @@ getBlockType (Block stmts) expectedType = do
 markOvershadowable (nameLocks, consts, _) =
   (nameLocks, consts, Set.fromList $ Map.keys nameLocks)
 
+checkDeclTypes type_ =
+  foldl
+    (\acc it ->
+       case it of
+         NoInit ident -> acc
+         Init ident expr -> do
+           (SimpleType exprType) <- getExprType expr
+           acc >>=
+             (\accVal ->
+                return $ not (exprType == Void || exprType /= type_) && accVal))
+    (return True)
+
 getStmtType :: [Stmt] -> ValType -> Result [ValType]
 getStmtType [] expectedType = return [NoRetType]
 getStmtType (Empty:tl) expectedType =
@@ -143,21 +162,8 @@ getStmtType (BStmt block:tl) expectedType = do
   btype <- local markOvershadowable (getBlockType block expectedType)
   getStmtType tl expectedType >>= (\res -> return $ btype : res)
 getStmtType (Decl type_ items:tl) expectedType = do
-  typeCheck <-
-    foldl
-      (\acc it ->
-         case it of
-           NoInit ident -> acc
-           Init ident expr -> do
-             (SimpleType exprType) <- getExprType expr
-             acc >>=
-               (\accVal ->
-                  return $ not (exprType == Void || exprType /= type_) && accVal))
-      (return True)
-      items
-  when
-    (not typeCheck)
-    (throwError $ "incorrect declaration of type " ++ show type_)
+  typeCheck <- checkDeclTypes type_ items
+  unless typeCheck (throwError $ "incorrect declaration of type " ++ show type_)
   let definedType = typeDefault type_
   case items of
     (h:tailItems) ->
@@ -285,10 +291,9 @@ getExprType (EApp ident exprs) = do
     else foldl
            (\acc (expr, type_) -> do
               exprType <- getExprType expr
-              if exprType /= type_
-                then throwError $
-                     "wrong argument type in function " ++ show ident
-                else return ())
+              when
+                (exprType /= type_)
+                (throwError $ "wrong argument type in function " ++ show ident))
            (return ())
            exprAndTypes
   return $ SimpleType type_
@@ -318,15 +323,14 @@ getExprType (EAdd expr1 addop expr2) = do
   eType2 <- getExprType expr2
   case addop of
     Plus ->
-      when
-        (not
-           ((eType1 == SimpleType Int && eType2 == SimpleType Int) ||
-            (eType1 == SimpleType Str && eType2 == SimpleType Str)))
+      unless
+        ((eType1 == SimpleType Int && eType2 == SimpleType Int) ||
+         (eType1 == SimpleType Str && eType2 == SimpleType Str))
         (throwError $
          "cannot add expressions of type " ++ show eType1 ++ " " ++ show eType2)
     Minus ->
-      when
-        (not (eType1 == SimpleType Int && eType2 == SimpleType Int))
+      unless
+        (eType1 == SimpleType Int && eType2 == SimpleType Int)
         (throwError $
          "cannot subtract expressions of type " ++
          show eType1 ++ " " ++ show eType2)
@@ -341,8 +345,8 @@ getExprType (ERel expr1 relop expr2) = do
 getExprType (EAnd expr1 expr2) = do
   eType1 <- getExprType expr1
   eType2 <- getExprType expr2
-  when
-    (not (eType1 == eType2 || eType1 /= SimpleType Bool))
+  unless
+    (eType1 == eType2 || eType1 /= SimpleType Bool)
     (throwError $
      "invalidOperation with type " ++ show eType1 ++ " with" ++ show eType2)
   return $ SimpleType Bool

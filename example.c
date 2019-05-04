@@ -1,7 +1,8 @@
+int a =12;
 int main() {
-	int a=3;
-	return 0 ;
+	print(a);
+	int a=123;
+	print(a+b);
+	return 0;
 }
-int foo (int x, int x){
-	return x;
-}
+int b=12;

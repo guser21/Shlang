@@ -8,3 +8,5 @@
 ? final keyword
 
 
+Todo
+optimize n^2 decl items block in typechecker

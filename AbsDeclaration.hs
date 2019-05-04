@@ -7,17 +7,11 @@ module AbsDeclaration where
 
 
 
-newtype Ident = Ident String deriving (Eq, Ord, Read)
-
-instance Show Ident where 
-  show (Ident str) = str
-
-
-
+newtype Ident = Ident String deriving (Eq, Ord, Show, Read)
 data Program = Program [TopDef]
   deriving (Eq, Ord, Show, Read)
 
-data TopDef = FnDef Type Ident [Arg] Block
+data TopDef = FnDef Type Ident [Arg] Block | GlobDecl Type [Item]
   deriving (Eq, Ord, Show, Read)
 
 data Arg = Arg Type Ident
