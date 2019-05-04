@@ -1,8 +1,10 @@
 - detect stack overflow
 - type inference 
 ? runtime exception ???
+? callcc
 
 + typechecker
 + short circuit evaluation
 ? final keyword
+
 
