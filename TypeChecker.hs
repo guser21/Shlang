@@ -95,15 +95,27 @@ declValue nameIdent resVal = do
 mainFunc = Ident "main"
 
 checkTypes :: Program -> Result ()
-checkTypes (Program topDefs) = do
+checkTypes (Program topDefs)
   --todo find a better way of doing this
-  let globalDefs = filter (\el -> case el of  {GlobDecl type_ items -> True; _ -> False})  topDefs
-  let functions = filter (\el -> case el of  {FnDef reType ident args b -> True; _ -> False}) topDefs
+ = do
+  let globalDefs =
+        filter
+          (\el ->
+             case el of
+               GlobDecl type_ items -> True
+               _                    -> False)
+          topDefs
+  let functions =
+        filter
+          (\el ->
+             case el of
+               FnDef reType ident args b -> True
+               _                         -> False)
+          topDefs
   checkAllGlobalDefs globalDefs >> checkAllFunctions functions
 
-
-checkAllGlobalDefs globalDefs =do
-  let declList= map (\(GlobDecl type_ items)-> Decl type_ items) globalDefs
+checkAllGlobalDefs globalDefs = do
+  let declList = map (\(GlobDecl type_ items) -> Decl type_ items) globalDefs
   getStmtType declList NoRetType
 
 checkAllFunctions (h:tl) =
@@ -154,6 +166,12 @@ checkDeclTypes type_ =
                 return $ not (exprType == Void || exprType /= type_) && accVal))
     (return True)
 
+checkIfConst :: Ident -> Result()
+checkIfConst ident= do 
+  (_, constNames,_) <- ask
+  when (Set.member ident constNames) (throwError $ "cannot modify const variable " ++ show ident)
+
+
 getStmtType :: [Stmt] -> ValType -> Result [ValType]
 getStmtType [] expectedType = return [NoRetType]
 getStmtType (Empty:tl) expectedType =
@@ -176,6 +194,7 @@ getStmtType (Decl type_ items:tl) expectedType = do
 getStmtType (DeclBlock type_ items:tl) expectedType =
   throwError "not implemented"
 getStmtType (Ass ident expr:tl) expectedType = do
+  checkIfConst ident
   identType <- getTypeByIdent ident
   exprType <- getExprType expr
   if identType /= exprType
@@ -184,11 +203,13 @@ getStmtType (Ass ident expr:tl) expectedType = do
          show exprType ++ " value to variable " ++ show ident
     else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
 getStmtType (Incr ident:tl) expectedType = do
+  checkIfConst ident
   identType <- getTypeByIdent ident
   if identType /= SimpleType Int
     then throwError $ "cannot increment type " ++ show identType
     else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
 getStmtType (Decr ident:tl) expectedType = do
+  checkIfConst ident
   identType <- getTypeByIdent ident
   if identType /= SimpleType Int
     then throwError $ "cannot decrement type " ++ show identType
@@ -240,10 +261,16 @@ getStmtType (SExp expr:tl) expectedType =
 getStmtType (ConstFor type_ ident exprFrom exprTo stmt:tl) expectedType = do
   fromType <- getExprType exprFrom
   toType <- getExprType exprTo
-  stmtType <- getBlockType (Block [stmt]) expectedType
   when
     (fromType /= SimpleType Int || toType /= SimpleType Int)
     (throwError "for bounds must be of type int")
+  l <- newloc
+  modifyMem (Map.insert l (SimpleType Int))
+  stmtType <-
+    local
+      (\(env, consts, shadowVar) ->
+         (Map.insert ident l env, Set.insert ident consts, shadowVar))
+      (getBlockType (Block [stmt]) expectedType)
   when
     (stmtType /= expectedType && stmtType /= NoRetType)
     (throwError "wrong return type in the for block")

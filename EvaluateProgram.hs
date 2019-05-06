@@ -237,6 +237,8 @@ evalBlock (h:tl) =
            (Map.insert ident loc env, Set.insert ident constName))
         (runBody start loc end stmt) >>
         evalBlock tl
+
+        
     Ret expr -> (Just <$> evalExpr expr) >>= returnFromFunc 
     VRet -> returnFromFunc (Just VoidVal)
     Print expr -> evalExpr expr >>= (liftIO . print) >> evalBlock tl

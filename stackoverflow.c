@@ -1,6 +1,6 @@
 int main(){
-    for(int i=1 to 100000){
-        foo();
+    for(int i=100 to 100000){
+        i++;
     }
     return 0;
 }
