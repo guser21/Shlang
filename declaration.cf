@@ -8,6 +8,8 @@ FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
 GlobDecl.  TopDef ::= Type [Item] ";" ;
 
+GlobFinDecl. TopDef ::= "final" Type [Item] ";" ;
+
 separator nonempty TopDef "" ;
 
 Arg. 	   Arg ::= Type Ident;
@@ -26,7 +28,7 @@ BStmt.     Stmt ::= Block ;
 
 Decl.      Stmt ::= Type [Item] ";" ;
 
-DeclBlock. Stmt ::= "block" Type [Item] ";" ;
+DeclFinal. Stmt ::= "final" Type [Item] ";" ;
 
 NoInit.    Item ::= Ident ; 
 

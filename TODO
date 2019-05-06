@@ -2,7 +2,6 @@
 - show instance for idents
 ? runtime exception ???
 ? callcc
-- remove constnames from evluate program 
 
 + detect stack overflow
 + typechecker

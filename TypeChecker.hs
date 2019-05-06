@@ -3,6 +3,7 @@ module TypeChecker where
 import           AbsDeclaration
 import           EnvDefinitions
 
+import           Control.Monad
 import           Control.Monad.Except
 import           Control.Monad.Identity
 import           Control.Monad.Reader
@@ -92,6 +93,28 @@ declValue nameIdent resVal = do
        (\(env, constNames, shadowVar) ->
           (Map.insert nameIdent l env, constNames, shadowVar)))
 
+declValueTypeLists :: [(Type, [Ident])] -> Result (Result a -> Result a)
+declValueTypeLists namesAndTypes = do
+  (env, constName, shadowable) <- ask
+  nenv <-
+    foldl
+      (\acc (type_, idents) ->
+         foldl
+           (\acc ident -> do
+              curEnv <- acc
+              when
+                (Set.notMember ident shadowable && Map.member ident curEnv)
+                (throwError $ "name " ++ show ident ++ " is already in use")
+              l <- newloc
+              val <- typeDefault type_
+              modifyMem (Map.insert l val)
+              return (Map.insert ident l curEnv))
+           acc
+           idents)
+      (return env)
+      namesAndTypes
+  return $ local (const (nenv, constName, shadowable))
+
 mainFunc = Ident "main"
 
 checkTypes :: Program -> Result ()
@@ -99,24 +122,40 @@ checkTypes (Program topDefs)
   --todo find a better way of doing this
  = do
   let globalDefs =
-        filter
-          (\el ->
+        foldl
+          (\acc el ->
              case el of
-               GlobDecl type_ items -> True
-               _                    -> False)
+               GlobDecl type_ items    -> (type_, items) : acc
+               GlobFinDecl type_ items -> (type_, items) : acc
+               _                       -> acc)
+          []
+          topDefs
+  let globalFinalIdents =
+        foldl
+          (\acc el ->
+             case el of
+               GlobFinDecl type_ items -> map getIdentFromItem items ++ acc
+               _                       -> acc)
+          []
           topDefs
   let functions =
         filter
-          (\el ->
-             case el of
+          (\e ->
+             case e of
                FnDef reType ident args b -> True
                _                         -> False)
           topDefs
-  checkAllGlobalDefs globalDefs >> checkAllFunctions functions
-
-checkAllGlobalDefs globalDefs = do
-  let declList = map (\(GlobDecl type_ items) -> Decl type_ items) globalDefs
-  getStmtType declList NoRetType
+  (env, consts, shadow) <- ask
+  let constIdents = foldl (flip Set.insert) consts globalFinalIdents
+  traverse_
+    (\(type_, items) ->
+       checkDeclTypes type_ items >>=
+       flip unless (throwError $ "incorrect declaration of type " ++ show type_))
+    globalDefs
+  let typeAndIdent =
+        map (\(type_, items) -> (type_, map getIdentFromItem items)) globalDefs
+  declCont <- declValueTypeLists typeAndIdent
+  declCont (checkAllFunctions functions)
 
 checkAllFunctions (h:tl) =
   case h of
@@ -166,11 +205,12 @@ checkDeclTypes type_ =
                 return $ not (exprType == Void || exprType /= type_) && accVal))
     (return True)
 
-checkIfConst :: Ident -> Result()
-checkIfConst ident= do 
-  (_, constNames,_) <- ask
-  when (Set.member ident constNames) (throwError $ "cannot modify const variable " ++ show ident)
-
+checkIfConst :: Ident -> Result ()
+checkIfConst ident = do
+  (_, constNames, _) <- ask
+  when
+    (Set.member ident constNames)
+    (throwError $ "cannot modify const variable " ++ show ident)
 
 getStmtType :: [Stmt] -> ValType -> Result [ValType]
 getStmtType [] expectedType = return [NoRetType]
@@ -182,6 +222,7 @@ getStmtType (BStmt block:tl) expectedType = do
 getStmtType (Decl type_ items:tl) expectedType = do
   typeCheck <- checkDeclTypes type_ items
   unless typeCheck (throwError $ "incorrect declaration of type " ++ show type_)
+  --inefficient
   let definedType = typeDefault type_
   case items of
     (h:tailItems) ->
@@ -191,8 +232,13 @@ getStmtType (Decl type_ items:tl) expectedType = do
                cont (getStmtType (Decl type_ (tail items) : tl) expectedType)
              return $ NoRetType : res
     [] -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-getStmtType (DeclBlock type_ items:tl) expectedType =
-  throwError "not implemented"
+getStmtType (DeclFinal type_ items:tl) expectedType = do
+  (env, consts, shadowVar) <- ask
+  let idents = map getIdentFromItem items
+  let newconsts = foldl (flip Set.insert) consts idents
+  local
+    (\(env, consts, shadowVar) -> (env, newconsts, shadowVar))
+    (getStmtType (Decl type_ items : tl) expectedType)
 getStmtType (Ass ident expr:tl) expectedType = do
   checkIfConst ident
   identType <- getTypeByIdent ident

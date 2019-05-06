@@ -19,6 +19,7 @@ transTopDef :: TopDef -> Result
 transTopDef x = case x of
   FnDef type_ ident args block -> failure x
   GlobDecl type_ items -> failure x
+  GlobFinDecl type_ items -> failure x
 transArg :: Arg -> Result
 transArg x = case x of
   Arg type_ ident -> failure x
@@ -30,7 +31,7 @@ transStmt x = case x of
   Empty -> failure x
   BStmt block -> failure x
   Decl type_ items -> failure x
-  DeclBlock type_ items -> failure x
+  DeclFinal type_ items -> failure x
   Ass ident expr -> failure x
   Incr ident -> failure x
   Decr ident -> failure x

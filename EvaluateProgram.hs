@@ -142,6 +142,7 @@ runFunctions (h:tl) = do
           _ -> declValue ident (return $ FunVal h)
       GlobDecl type_ items ->
         declValueList (declIdents items) (declValueInit type_ items)
+      GlobFinDecl type_ items -> declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
 runFunctions [] = do
   env <- ask
@@ -194,11 +195,10 @@ declIdents =
          Init ident expr -> ident)
 
 runBody curInd loc end stmt =
-  if curInd <= end
-    then do
-      modifyMem (Map.insert loc (NumVal curInd))
-      evalBlock [stmt] >> runBody (curInd + 1) loc end stmt
-    else return ()
+  when
+    (curInd <= end)
+    (modifyMem (Map.insert loc (NumVal curInd)) >> evalBlock [stmt] >>
+     runBody (curInd + 1) loc end stmt)
 
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) =
@@ -215,7 +215,7 @@ evalBlock (h:tl) =
     Decl type_ items -> do
       declCont <- declValueList (declIdents items) (declValueInit type_ items)
       declCont (evalBlock tl)
-    DeclBlock type_ items -> throwError "Not implemented"
+    DeclFinal type_ items -> evalBlock (Decl type_ items : tl)
     Ass ident expr ->
       evalExpr expr >>= (modifyVariable ident . const) >> evalBlock tl
     Incr ident ->

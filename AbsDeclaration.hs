@@ -11,7 +11,10 @@ newtype Ident = Ident String deriving (Eq, Ord, Show, Read)
 data Program = Program [TopDef]
   deriving (Eq, Ord, Show, Read)
 
-data TopDef = FnDef Type Ident [Arg] Block | GlobDecl Type [Item]
+data TopDef
+    = FnDef Type Ident [Arg] Block
+    | GlobDecl Type [Item]
+    | GlobFinDecl Type [Item]
   deriving (Eq, Ord, Show, Read)
 
 data Arg = Arg Type Ident
@@ -24,7 +27,7 @@ data Stmt
     = Empty
     | BStmt Block
     | Decl Type [Item]
-    | DeclBlock Type [Item]
+    | DeclFinal Type [Item]
     | Ass Ident Expr
     | Incr Ident
     | Decr Ident

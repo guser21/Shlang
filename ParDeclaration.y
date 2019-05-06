@@ -33,10 +33,10 @@ import ErrM
   '==' { PT _ (TS _ 18) }
   '>' { PT _ (TS _ 19) }
   '>=' { PT _ (TS _ 20) }
-  'block' { PT _ (TS _ 21) }
-  'boolean' { PT _ (TS _ 22) }
-  'else' { PT _ (TS _ 23) }
-  'false' { PT _ (TS _ 24) }
+  'boolean' { PT _ (TS _ 21) }
+  'else' { PT _ (TS _ 22) }
+  'false' { PT _ (TS _ 23) }
+  'final' { PT _ (TS _ 24) }
   'for' { PT _ (TS _ 25) }
   'if' { PT _ (TS _ 26) }
   'int' { PT _ (TS _ 27) }
@@ -67,6 +67,7 @@ Program : ListTopDef { AbsDeclaration.Program $1 }
 TopDef :: { TopDef }
 TopDef : Type Ident '(' ListArg ')' Block { AbsDeclaration.FnDef $1 $2 $4 $6 }
        | Type ListItem ';' { AbsDeclaration.GlobDecl $1 $2 }
+       | 'final' Type ListItem ';' { AbsDeclaration.GlobFinDecl $2 $3 }
 ListTopDef :: { [TopDef] }
 ListTopDef : TopDef { (:[]) $1 } | TopDef ListTopDef { (:) $1 $2 }
 Arg :: { Arg }
@@ -83,7 +84,7 @@ Stmt :: { Stmt }
 Stmt : ';' { AbsDeclaration.Empty }
      | Block { AbsDeclaration.BStmt $1 }
      | Type ListItem ';' { AbsDeclaration.Decl $1 $2 }
-     | 'block' Type ListItem ';' { AbsDeclaration.DeclBlock $2 $3 }
+     | 'final' Type ListItem ';' { AbsDeclaration.DeclFinal $2 $3 }
      | Ident '=' Expr ';' { AbsDeclaration.Ass $1 $3 }
      | Ident '++' ';' { AbsDeclaration.Incr $1 }
      | Ident '--' ';' { AbsDeclaration.Decr $1 }
