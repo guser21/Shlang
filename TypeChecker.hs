@@ -25,9 +25,9 @@ data ValType
 instance Show ValType where
   show v =
     case v of
-      FunType _    -> "function"
-      NoRetType    -> "no return type"
-      SimpleType t -> show t
+      FunType _        -> "function"
+      NoRetType        -> "no return type"
+      SimpleType type_ -> show type_
 
 type Loc = Integer
 
@@ -76,6 +76,7 @@ typeDefault type_ =
     Str  -> return $ SimpleType Str
     _    -> throwError "unrecognized type"
 
+getIdentFromItem :: Item -> Ident
 getIdentFromItem (NoInit ident)    = ident
 getIdentFromItem (Init ident expr) = ident
 
@@ -93,12 +94,13 @@ declValue nameIdent resVal = do
        (\(env, constNames, shadowVar) ->
           (Map.insert nameIdent l env, constNames, shadowVar)))
 
-declValueTypeLists :: [(Type, [Ident])] -> Result (Result a -> Result a)
-declValueTypeLists namesAndTypes = do
+declValueTypeLists ::
+     [(Type, [Ident])] -> Set.Set Ident -> Result (Result a -> Result a)
+declValueTypeLists namesAndTypes newConstNames = do
   (env, constName, shadowable) <- ask
   nenv <-
     foldl
-      (\acc (type_, idents) ->
+      (\facc (type_, idents) ->
          foldl
            (\acc ident -> do
               curEnv <- acc
@@ -109,11 +111,11 @@ declValueTypeLists namesAndTypes = do
               val <- typeDefault type_
               modifyMem (Map.insert l val)
               return (Map.insert ident l curEnv))
-           acc
+           facc
            idents)
       (return env)
       namesAndTypes
-  return $ local (const (nenv, constName, shadowable))
+  return $ local (const (nenv, constName `Set.union` newConstNames, shadowable))
 
 mainFunc = Ident "main"
 
@@ -154,7 +156,7 @@ checkTypes (Program topDefs)
     globalDefs
   let typeAndIdent =
         map (\(type_, items) -> (type_, map getIdentFromItem items)) globalDefs
-  declCont <- declValueTypeLists typeAndIdent
+  declCont <- declValueTypeLists typeAndIdent constIdents
   declCont (checkAllFunctions functions)
 
 checkAllFunctions (h:tl) =
@@ -162,10 +164,16 @@ checkAllFunctions (h:tl) =
     FnDef reType ident args block -> do
       declCont <- declValue ident (return $ FunType h)
       declCont (checkAllFunctions tl)
+    _ -> throwError "unexpected type in fun match"
 checkAllFunctions [] = do
   (env, constName, _) <- ask
   traverse_
-    (\(_, loc) -> getTypeByLoc loc >>= (checkFunction . fun))
+    (\(_, loc) ->
+       getTypeByLoc loc >>=
+       (\e ->
+          case e of
+            FunType f -> checkFunction f
+            _         -> return True))
     (Map.toList env)
 
 checkFunction :: TopDef -> Result Bool
@@ -193,6 +201,11 @@ getBlockType (Block stmts) expectedType = do
 markOvershadowable (nameLocks, consts, _) =
   (nameLocks, consts, Set.fromList $ Map.keys nameLocks)
 
+checkDeclTypes ::
+     Foldable t
+  => Type
+  -> t Item
+  -> ReaderT Env (StateT Store (ExceptT String IO)) Bool
 checkDeclTypes type_ =
   foldl
     (\acc it ->
@@ -237,7 +250,7 @@ getStmtType (DeclFinal type_ items:tl) expectedType = do
   let idents = map getIdentFromItem items
   let newconsts = foldl (flip Set.insert) consts idents
   local
-    (\(env, consts, shadowVar) -> (env, newconsts, shadowVar))
+    (const (env, newconsts, shadowVar))
     (getStmtType (Decl type_ items : tl) expectedType)
 getStmtType (Ass ident expr:tl) expectedType = do
   checkIfConst ident
@@ -356,21 +369,21 @@ getExprType ELitTrue = return $ SimpleType Bool
 getExprType ELitFalse = return $ SimpleType Bool
 getExprType (EApp ident exprs) = do
   (FunType (FnDef type_ ident args block)) <- getTypeByIdent ident
-  let argTypes = map (\(Arg type_ ident) -> SimpleType type_) args
+  let argTypes = map (\(Arg argType _) -> SimpleType argType) args
   let exprAndTypes = zip exprs argTypes
   if length args /= length exprs
     then throwError $
          "wrong number of arguments supplied in funciton " ++ show ident
-    else foldl
-           (\acc (expr, type_) -> do
+    else traverse_
+           (\(expr, type_) --todo overshadowing the up type_
+             -> do
               exprType <- getExprType expr
               when
                 (exprType /= type_)
                 (throwError $ "wrong argument type in function " ++ show ident))
-           (return ())
            exprAndTypes
   return $ SimpleType type_
-getExprType (EString string) = return $ SimpleType Str
+getExprType (EString _) = return $ SimpleType Str
 getExprType (Neg expr) = do
   eType <- getExprType expr
   when
@@ -383,7 +396,7 @@ getExprType (Not expr) = do
     (eType /= SimpleType Bool)
     (throwError $ "cannot invert an expression of type " ++ show eType)
   return $ SimpleType Bool
-getExprType (EMul expr1 mulop expr2) = do
+getExprType (EMul expr1 _ expr2) = do
   eType1 <- getExprType expr1
   eType2 <- getExprType expr2
   when
@@ -408,7 +421,7 @@ getExprType (EAdd expr1 addop expr2) = do
          "cannot subtract expressions of type " ++
          show eType1 ++ " " ++ show eType2)
   return eType1
-getExprType (ERel expr1 relop expr2) = do
+getExprType (ERel expr1 _ expr2) = do
   eType1 <- getExprType expr1
   eType2 <- getExprType expr2
   if eType1 /= eType2
