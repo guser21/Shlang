@@ -1,8 +1,9 @@
-- detect stack overflow
 - type inference 
+- show instance for idents
 ? runtime exception ???
 ? callcc
 
++ detect stack overflow
 + typechecker
 + short circuit evaluation
 ? final keyword

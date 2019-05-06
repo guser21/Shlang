@@ -39,22 +39,36 @@ type Env = (Map.Map Ident Loc, ConstIdent)
 
 type Mem = Map.Map Loc Value
 
-type Store = (Mem, Loc)
+type StackCount = Integer
+
+type Store = (Mem, Loc, StackCount)
 
 type Result = ReaderT Env (StateT Store (ExceptT String IO))
 
+callStackLimit = 20000
+
+registerFunCall :: Ident-> Result ()
+registerFunCall funIdent = do
+  (st, l, scount) <- get
+  when (scount > callStackLimit) (throwError $ "StackOverflow" ++ show funIdent)
+  modify (\(st, l, scount) -> (st, l, scount + 1))
+  return ()
+
+returnFromFunc :: a ->  Result a
+returnFromFunc val = modify (\(st, l, scount) -> (st, l, scount-1)) >> return val
+
 newloc :: Result Loc
 newloc = do
-  (st, l) <- get
-  put (st, l + 1)
+  (st, l, scount) <- get
+  put (st, l + 1, scount)
   return l
 
 modifyMem :: (Mem -> Mem) -> Result ()
-modifyMem f = modify (\(st, l) -> (f st, l))
+modifyMem f = modify (\(st, l, scount) -> (f st, l, scount))
 
 getValByLoc :: Loc -> Result Value
 getValByLoc loc = do
-  (st, l) <- get
+  (st, l, scount) <- get
   case Map.lookup loc st of
     Just val -> return val
     Nothing  -> throwError "cannot find location for name"
@@ -62,7 +76,7 @@ getValByLoc loc = do
 getValByIdent :: Ident -> Result Value
 getValByIdent var = do
   (env, _) <- ask
-  (st, l) <- get
+  (st, l, _) <- get
   let varLoc = Map.lookup var env
   case varLoc of
     Just loc -> getValByLoc loc
@@ -71,7 +85,7 @@ getValByIdent var = do
 modifyVariable :: Ident -> (Value -> Value) -> Result ()
 modifyVariable var f = do
   (env, constNames) <- ask
-  (st, l) <- get
+  (st, l, _) <- get
   let (Ident varname) = var
   let varLoc = Map.lookup var env
   if Set.member var constNames
@@ -120,12 +134,19 @@ runProgram (Program topDefs) = runFunctions topDefs
 runFunctions :: [TopDef] -> Result ()
 runFunctions (h:tl) = do
   declCont <-
-    case h of
-      FnDef reType ident args block -> declValue ident (return $ FunVal h)
+    case h
+      --add return statement to void functions for stack counting
+          of
+      FnDef reType ident args block ->
+        case reType of
+          Void ->
+            let withRetVoidFun =
+                  FnDef reType ident args (Block [BStmt block, VRet])
+             in declValue ident (return $ FunVal withRetVoidFun)
+          _ -> declValue ident (return $ FunVal h)
       GlobDecl type_ items ->
         declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
-
 runFunctions [] = do
   (env, _) <- ask
   case Map.lookup mainFunc env of
@@ -142,7 +163,7 @@ runProgramIO prog = do
     runExceptT
       (runStateT
          (runReaderT (runProgram prog) (Map.empty, Set.empty))
-         (Map.empty, 0))
+         (Map.empty, 0, 0))
   case ans of
     (Left errMesg) -> putStrLn $ "Runtime error: " ++ errMesg
     _              -> return () --ended as supposed
@@ -216,8 +237,8 @@ evalBlock (h:tl) =
            (Map.insert ident loc env, Set.insert ident constName))
         (runBody start loc end stmt) >>
         evalBlock tl
-    Ret expr -> evalExpr expr >>= (return . Just)
-    VRet -> return $ Just VoidVal
+    Ret expr -> (Just <$> evalExpr expr) >>= returnFromFunc 
+    VRet -> returnFromFunc (Just VoidVal)
     Print expr -> evalExpr expr >>= (liftIO . print) >> evalBlock tl
     Cond expr stmt -> evalBlock $ CondElse expr stmt Empty : tl
     CondElse expr stmt1 stmt2 ->
@@ -241,6 +262,7 @@ evalExpr x =
     ELitTrue -> return (BoolVal True)
     ELitFalse -> return (BoolVal False)
     EApp ident args -> do
+      registerFunCall ident
       let argRes = map evalExpr args
       (FunVal fun) <- getValByIdent ident
       evalFunction fun argRes
