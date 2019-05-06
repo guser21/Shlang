@@ -33,9 +33,7 @@ instance Show Value where
 
 type Loc = Integer
 
-type ConstIdent = Set.Set Ident
-
-type Env = (Map.Map Ident Loc, ConstIdent)
+type Env = Map.Map Ident Loc
 
 type Mem = Map.Map Loc Value
 
@@ -47,15 +45,16 @@ type Result = ReaderT Env (StateT Store (ExceptT String IO))
 
 callStackLimit = 20000
 
-registerFunCall :: Ident-> Result ()
+registerFunCall :: Ident -> Result ()
 registerFunCall funIdent = do
   (st, l, scount) <- get
   when (scount > callStackLimit) (throwError $ "StackOverflow" ++ show funIdent)
   modify (\(st, l, scount) -> (st, l, scount + 1))
   return ()
 
-returnFromFunc :: a ->  Result a
-returnFromFunc val = modify (\(st, l, scount) -> (st, l, scount-1)) >> return val
+returnFromFunc :: a -> Result a
+returnFromFunc val =
+  modify (\(st, l, scount) -> (st, l, scount - 1)) >> return val
 
 newloc :: Result Loc
 newloc = do
@@ -75,7 +74,7 @@ getValByLoc loc = do
 
 getValByIdent :: Ident -> Result Value
 getValByIdent var = do
-  (env, _) <- ask
+  env <- ask
   (st, l, _) <- get
   let varLoc = Map.lookup var env
   case varLoc of
@@ -84,15 +83,13 @@ getValByIdent var = do
 
 modifyVariable :: Ident -> (Value -> Value) -> Result ()
 modifyVariable var f = do
-  (env, constNames) <- ask
+  env <- ask
   (st, l, _) <- get
   let (Ident varname) = var
   let varLoc = Map.lookup var env
-  if Set.member var constNames
-    then throwError $ "cannot modify const variable " ++ varname
-    else (case varLoc of
-            Just loc -> getValByLoc loc >>= (modifyMem . Map.insert loc . f)
-            Nothing  -> throwError $ "unknown indentificator " ++ show var)
+  case varLoc of
+    Just loc -> getValByLoc loc >>= (modifyMem . Map.insert loc . f)
+    Nothing  -> throwError $ "unknown indentificator " ++ show var
 
 typeDefault :: Type -> Result Value
 typeDefault type_ =
@@ -114,8 +111,7 @@ declValue nameIdent resVal = do
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
-  return
-    (local (\(env, constNames) -> (Map.insert nameIdent l env, constNames)))
+  return (local (Map.insert nameIdent l))
 
 declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
@@ -148,7 +144,7 @@ runFunctions (h:tl) = do
         declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
 runFunctions [] = do
-  (env, _) <- ask
+  env <- ask
   case Map.lookup mainFunc env of
     Just mainLoc -> do
       funRes <- getValByLoc mainLoc
@@ -161,9 +157,7 @@ runProgramIO :: Program -> IO ()
 runProgramIO prog = do
   ans <-
     runExceptT
-      (runStateT
-         (runReaderT (runProgram prog) (Map.empty, Set.empty))
-         (Map.empty, 0, 0))
+      (runStateT (runReaderT (runProgram prog) Map.empty) (Map.empty, 0, 0))
   case ans of
     (Left errMesg) -> putStrLn $ "Runtime error: " ++ errMesg
     _              -> return () --ended as supposed
@@ -232,14 +226,8 @@ evalBlock (h:tl) =
       (NumVal start) <- evalExpr expr1
       (NumVal end) <- evalExpr expr2
       loc <- newloc
-      local
-        (\(env, constName) ->
-           (Map.insert ident loc env, Set.insert ident constName))
-        (runBody start loc end stmt) >>
-        evalBlock tl
-
-        
-    Ret expr -> (Just <$> evalExpr expr) >>= returnFromFunc 
+      local (Map.insert ident loc) (runBody start loc end stmt) >> evalBlock tl
+    Ret expr -> (Just <$> evalExpr expr) >>= returnFromFunc
     VRet -> returnFromFunc (Just VoidVal)
     Print expr -> evalExpr expr >>= (liftIO . print) >> evalBlock tl
     Cond expr stmt -> evalBlock $ CondElse expr stmt Empty : tl
