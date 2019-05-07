@@ -48,7 +48,7 @@ callStackLimit = 20000
 registerFunCall :: Ident -> Result ()
 registerFunCall funIdent = do
   (st, l, scount) <- get
-  when (scount > callStackLimit) (throwError $ "StackOverflow" ++ show funIdent)
+  when (scount > callStackLimit) (throwError $ "Stack Overflow" ++ show funIdent)
   modify (\(st, l, scount) -> (st, l, scount + 1))
   return ()
 
@@ -142,7 +142,8 @@ runFunctions (h:tl) = do
           _ -> declValue ident (return $ FunVal h)
       GlobDecl type_ items ->
         declValueList (declIdents items) (declValueInit type_ items)
-      GlobFinDecl type_ items -> declValueList (declIdents items) (declValueInit type_ items)
+      GlobFinDecl type_ items ->
+        declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
 runFunctions [] = do
   env <- ask
@@ -200,15 +201,28 @@ runBody curInd loc end stmt =
     (modifyMem (Map.insert loc (NumVal curInd)) >> evalBlock [stmt] >>
      runBody (curInd + 1) loc end stmt)
 
+-- cleanMem :: () -> Result ()
+cleanMem = do
+  env <- ask
+  (mem, loc, stackCount) <- get
+  let nMem =
+        foldl
+          (\acc (ident, loc) ->
+             case Map.lookup loc mem of
+               Nothing     -> acc
+               Just curVal -> Map.insert loc curVal acc)
+          Map.empty
+          (Map.toList env)
+   in put (nMem, loc, stackCount)
+
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) =
   case h of
     Empty -> evalBlock tl
-  --TODO simplify
   --TODO remove allocated locs after exiting block
-  --run local
     BStmt (Block stmts) -> do
       blockRes <- local id (evalBlock stmts)
+      cleanMem
       case blockRes of
         Nothing       -> evalBlock tl
         Just finalVal -> return (Just finalVal)
