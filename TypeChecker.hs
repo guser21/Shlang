@@ -98,24 +98,23 @@ declValueTypeLists ::
      [(Type, [Ident])] -> Set.Set Ident -> Result (Result a -> Result a)
 declValueTypeLists namesAndTypes newConstNames = do
   (env, constName, shadowable) <- ask
+  let nameTypeFlat =
+        concatMap (\(t, idents) -> map (\e -> (t, e)) idents) namesAndTypes
+  let consts = foldl (\acc (t, ident) -> Set.delete ident acc) constName nameTypeFlat
   nenv <-
     foldl
-      (\facc (type_, idents) ->
-         foldl
-           (\acc ident -> do
-              curEnv <- acc
-              when
-                (Set.notMember ident shadowable && Map.member ident curEnv)
-                (throwError $ "name " ++ show ident ++ " is already in use")
-              l <- newloc
-              val <- typeDefault type_
-              modifyMem (Map.insert l val)
-              return (Map.insert ident l curEnv))
-           facc
-           idents)
+      (\acc (type_, ident) -> do
+         curEnv <- acc
+         when
+           (Set.notMember ident shadowable && Map.member ident curEnv)
+           (throwError $ "name " ++ show ident ++ " is already in use")
+         l <- newloc
+         val <- typeDefault type_
+         modifyMem (Map.insert l val)
+         return (Map.insert ident l curEnv))
       (return env)
-      namesAndTypes
-  return $ local (const (nenv, constName `Set.union` newConstNames, shadowable))
+      nameTypeFlat
+  return $ local (const (nenv, consts `Set.union` newConstNames, shadowable))
 
 mainFunc = Ident "main"
 
@@ -232,19 +231,13 @@ getStmtType (Empty:tl) expectedType =
 getStmtType (BStmt block:tl) expectedType = do
   btype <- local markOvershadowable (getBlockType block expectedType)
   getStmtType tl expectedType >>= (\res -> return $ btype : res)
+  ---
 getStmtType (Decl type_ items:tl) expectedType = do
   typeCheck <- checkDeclTypes type_ items
   unless typeCheck (throwError $ "incorrect declaration of type " ++ show type_)
-  --inefficient
-  let definedType = typeDefault type_
-  case items of
-    (h:tailItems) ->
-      let ident = getIdentFromItem h
-       in do cont <- declValue ident definedType
-             res <-
-               cont (getStmtType (Decl type_ (tail items) : tl) expectedType)
-             return $ NoRetType : res
-    [] -> getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+  declCont <- declValueTypeLists [(type_, map getIdentFromItem items)] Set.empty
+  declCont (getStmtType tl expectedType)
+  ---
 getStmtType (DeclFinal type_ items:tl) expectedType = do
   (env, consts, shadowVar) <- ask
   let idents = map getIdentFromItem items
