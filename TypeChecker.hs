@@ -188,7 +188,7 @@ checkFunction (FnDef retType ident argDefs block) = do
 
 getBlockType :: Block -> ValType -> Result ValType
 getBlockType (Block stmts) expectedType = do
-  stmtTypes <- getStmtType stmts expectedType
+  stmtTypes <- local markOvershadowable (getStmtType stmts expectedType)
   return $
     foldl
       (\acc curType ->
