@@ -6,7 +6,8 @@
 + detect stack overflow
 + typechecker
 + short circuit evaluation
-? final keyword
++ final keyword
++ break continue
 
 
 Todo

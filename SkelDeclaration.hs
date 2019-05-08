@@ -41,6 +41,8 @@ transStmt x = case x of
   Cond expr stmt -> failure x
   CondElse expr stmt1 stmt2 -> failure x
   While expr stmt -> failure x
+  Break -> failure x
+  Continue -> failure x
   SExp expr -> failure x
   ConstFor type_ ident expr1 expr2 stmt -> failure x
 transItem :: Item -> Result

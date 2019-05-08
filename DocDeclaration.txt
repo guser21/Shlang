@@ -32,10 +32,10 @@ except ``"`` unless preceded by ``\``.
 The set of reserved words is the set of terminals appearing in the grammar. Those reserved words that consist of non-letter characters are called symbols, and they are treated in a different way from those that are similar to identifiers. The lexer follows rules familiar from languages like Haskell, C, and Java, including longest match and spacing conventions.
 
 The reserved words used in declaration are the following:
-  | ``boolean`` | ``else`` | ``false`` | ``final``
-  | ``for`` | ``if`` | ``int`` | ``print``
-  | ``return`` | ``string`` | ``to`` | ``true``
-  | ``void`` | ``while`` |  | 
+  | ``boolean`` | ``break`` | ``continue`` | ``else``
+  | ``false`` | ``final`` | ``for`` | ``if``
+  | ``int`` | ``print`` | ``return`` | ``string``
+  | ``to`` | ``true`` | ``void`` | ``while``
 
 The symbols used in declaration are the following:
   | ( | ) | ; | ,
@@ -80,6 +80,8 @@ All other symbols are terminals.
   |  |  **|**  | ``if`` ``(`` //Expr// ``)`` //Stmt// 
   |  |  **|**  | ``if`` ``(`` //Expr// ``)`` //Stmt// ``else`` //Stmt// 
   |  |  **|**  | ``while`` ``(`` //Expr// ``)`` //Stmt// 
+  |  |  **|**  | ``break`` ``;`` 
+  |  |  **|**  | ``continue`` ``;`` 
   |  |  **|**  | //Expr// ``;`` 
   |  |  **|**  | ``for`` ``(`` //Type// //Ident// ``=`` //Expr// ``to`` //Expr// ``)`` //Stmt// 
   | //Item// | -> | //Ident// 
