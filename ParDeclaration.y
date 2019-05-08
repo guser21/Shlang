@@ -34,22 +34,24 @@ import ErrM
   '>' { PT _ (TS _ 19) }
   '>=' { PT _ (TS _ 20) }
   'boolean' { PT _ (TS _ 21) }
-  'else' { PT _ (TS _ 22) }
-  'false' { PT _ (TS _ 23) }
-  'final' { PT _ (TS _ 24) }
-  'for' { PT _ (TS _ 25) }
-  'if' { PT _ (TS _ 26) }
-  'int' { PT _ (TS _ 27) }
-  'print' { PT _ (TS _ 28) }
-  'return' { PT _ (TS _ 29) }
-  'string' { PT _ (TS _ 30) }
-  'to' { PT _ (TS _ 31) }
-  'true' { PT _ (TS _ 32) }
-  'void' { PT _ (TS _ 33) }
-  'while' { PT _ (TS _ 34) }
-  '{' { PT _ (TS _ 35) }
-  '||' { PT _ (TS _ 36) }
-  '}' { PT _ (TS _ 37) }
+  'break' { PT _ (TS _ 22) }
+  'continue' { PT _ (TS _ 23) }
+  'else' { PT _ (TS _ 24) }
+  'false' { PT _ (TS _ 25) }
+  'final' { PT _ (TS _ 26) }
+  'for' { PT _ (TS _ 27) }
+  'if' { PT _ (TS _ 28) }
+  'int' { PT _ (TS _ 29) }
+  'print' { PT _ (TS _ 30) }
+  'return' { PT _ (TS _ 31) }
+  'string' { PT _ (TS _ 32) }
+  'to' { PT _ (TS _ 33) }
+  'true' { PT _ (TS _ 34) }
+  'void' { PT _ (TS _ 35) }
+  'while' { PT _ (TS _ 36) }
+  '{' { PT _ (TS _ 37) }
+  '||' { PT _ (TS _ 38) }
+  '}' { PT _ (TS _ 39) }
 
 L_ident  { PT _ (TV $$) }
 L_integ  { PT _ (TI $$) }
@@ -94,6 +96,8 @@ Stmt : ';' { AbsDeclaration.Empty }
      | 'if' '(' Expr ')' Stmt { AbsDeclaration.Cond $3 $5 }
      | 'if' '(' Expr ')' Stmt 'else' Stmt { AbsDeclaration.CondElse $3 $5 $7 }
      | 'while' '(' Expr ')' Stmt { AbsDeclaration.While $3 $5 }
+     | 'break' ';' { AbsDeclaration.Break }
+     | 'continue' ';' { AbsDeclaration.Continue }
      | Expr ';' { AbsDeclaration.SExp $1 }
      | 'for' '(' Type Ident '=' Expr 'to' Expr ')' Stmt { AbsDeclaration.ConstFor $3 $4 $6 $8 $10 }
 Item :: { Item }

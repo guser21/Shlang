@@ -158,7 +158,7 @@ eitherResIdent tv s = treeFind resWords
                               | s == a = t
 
 resWords :: BTree
-resWords = b ">" 19 (b "," 10 (b "(" 5 (b "%" 3 (b "!=" 2 (b "!" 1 N N) N) (b "&&" 4 N N)) (b "+" 8 (b "*" 7 (b ")" 6 N N) N) (b "++" 9 N N))) (b "<" 15 (b "/" 13 (b "--" 12 (b "-" 11 N N) N) (b ";" 14 N N)) (b "=" 17 (b "<=" 16 N N) (b "==" 18 N N)))) (b "return" 29 (b "final" 24 (b "else" 22 (b "boolean" 21 (b ">=" 20 N N) N) (b "false" 23 N N)) (b "int" 27 (b "if" 26 (b "for" 25 N N) N) (b "print" 28 N N))) (b "while" 34 (b "true" 32 (b "to" 31 (b "string" 30 N N) N) (b "void" 33 N N)) (b "||" 36 (b "{" 35 N N) (b "}" 37 N N))))
+resWords = b ">=" 20 (b "," 10 (b "(" 5 (b "%" 3 (b "!=" 2 (b "!" 1 N N) N) (b "&&" 4 N N)) (b "+" 8 (b "*" 7 (b ")" 6 N N) N) (b "++" 9 N N))) (b "<" 15 (b "/" 13 (b "--" 12 (b "-" 11 N N) N) (b ";" 14 N N)) (b "==" 18 (b "=" 17 (b "<=" 16 N N) N) (b ">" 19 N N)))) (b "print" 30 (b "false" 25 (b "continue" 23 (b "break" 22 (b "boolean" 21 N N) N) (b "else" 24 N N)) (b "if" 28 (b "for" 27 (b "final" 26 N N) N) (b "int" 29 N N))) (b "void" 35 (b "to" 33 (b "string" 32 (b "return" 31 N N) N) (b "true" 34 N N)) (b "||" 38 (b "{" 37 (b "while" 36 N N) N) (b "}" 39 N N))))
    where b s n = let bs = id s
                   in B bs (TS bs n)
 

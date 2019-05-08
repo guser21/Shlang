@@ -34,7 +34,8 @@ instance Show Value where
 
 type Loc = Integer
 
-type Env = Map.Map Ident Loc
+-- Ident-> loc, break,continue
+type Env = (Map.Map Ident Loc, Maybe ([Stmt], [Stmt]))
 
 type Mem = Map.Map Loc Value
 
@@ -77,7 +78,7 @@ getValByLoc loc = do
 
 getValByIdent :: Ident -> Result Value
 getValByIdent var = do
-  env <- ask
+  (env, _) <- ask
   (st, l, _) <- get
   let varLoc = Map.lookup var env
   case varLoc of
@@ -86,7 +87,7 @@ getValByIdent var = do
 
 modifyVariable :: Ident -> (Value -> Value) -> Result ()
 modifyVariable var f = do
-  env <- ask
+  (env, _) <- ask
   (st, l, _) <- get
   let (Ident varname) = var
   let varLoc = Map.lookup var env
@@ -114,7 +115,7 @@ declValue nameIdent resVal = do
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
-  return (local (Map.insert nameIdent l))
+  return (local (\(env, bc) -> (Map.insert nameIdent l env, bc)))
 
 declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
@@ -149,7 +150,7 @@ runFunctions (h:tl) = do
         declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
 runFunctions [] = do
-  env <- ask
+  (env, _) <- ask
   case Map.lookup mainFunc env of
     Just mainLoc -> do
       funRes <- getValByLoc mainLoc
@@ -162,7 +163,9 @@ runProgramIO :: Program -> IO ()
 runProgramIO prog = do
   ans <-
     runExceptT
-      (runStateT (runReaderT (runProgram prog) Map.empty) (Map.empty, 0, 0))
+      (runStateT
+         (runReaderT (runProgram prog) (Map.empty, Nothing))
+         (Map.empty, 0, 0))
   case ans of
     (Left errMesg) -> putStrLn $ "Runtime error: " ++ errMesg
     _              -> return () --ended as supposed
@@ -205,7 +208,7 @@ runBody curInd loc end stmt =
      runBody (curInd + 1) loc end stmt)
 
 cleanMem = do
-  env <- ask
+  (env, _) <- ask
   (mem, loc, stackCount) <- get
   let nMem =
         foldl
@@ -242,7 +245,10 @@ evalBlock (h:tl) =
       (NumVal start) <- evalExpr expr1
       (NumVal end) <- evalExpr expr2
       loc <- newloc
-      local (Map.insert ident loc) (runBody start loc end stmt) >> evalBlock tl
+      local
+        (\(env, bc) -> (Map.insert ident loc env, bc))
+        (runBody start loc end stmt) >>
+        evalBlock tl
     Ret expr -> (Just <$> evalExpr expr) >>= returnFromFunc
     VRet -> returnFromFunc (Just VoidVal)
     Print expr -> evalExpr expr >>= (liftIO . print) >> evalBlock tl
@@ -256,7 +262,19 @@ evalBlock (h:tl) =
                else evalAsBlock stmt2)
     While expr stmt ->
       let whileLoop = CondElse expr (BStmt $ Block [stmt, whileLoop]) Empty
-       in evalBlock $ whileLoop : tl
+       in local
+            (\(env, _) -> (env, Just (tl, While expr stmt : tl)))
+            (evalBlock $ whileLoop : tl)
+    Break -> do
+      (_, bc) <- ask
+      case bc of
+        Nothing           -> evalBlock tl
+        Just (break, continue) -> evalBlock break
+    Continue -> do
+      (_, bc) <- ask
+      case bc of
+        Nothing           -> evalBlock tl
+        Just (break, continue) -> evalBlock continue
     SExp expr -> evalExpr expr >> evalBlock tl
 evalBlock [] = return Nothing
 

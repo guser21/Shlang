@@ -6,10 +6,6 @@ Program.   Program ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
-GlobDecl.  TopDef ::= Type [Item] ";" ;
-
-GlobFinDecl. TopDef ::= "final" Type [Item] ";" ;
-
 separator nonempty TopDef "" ;
 
 Arg. 	   Arg ::= Type Ident;
@@ -28,7 +24,6 @@ BStmt.     Stmt ::= Block ;
 
 Decl.      Stmt ::= Type [Item] ";" ;
 
-DeclFinal. Stmt ::= "final" Type [Item] ";" ;
 
 NoInit.    Item ::= Ident ; 
 
@@ -46,8 +41,6 @@ Ret.       Stmt ::= "return" Expr ";" ;
 
 VRet.      Stmt ::= "return" ";" ;
 
-Print.     Stmt ::= "print" "(" Expr ")";
-
 Cond.      Stmt ::= "if" "(" Expr ")" Stmt  ;
 
 CondElse.  Stmt ::= "if" "(" Expr ")" Stmt "else" Stmt  ;
@@ -56,7 +49,6 @@ While.     Stmt ::= "while" "(" Expr ")" Stmt ;
 
 SExp.      Stmt ::= Expr  ";" ;
 
-ConstFor.  Stmt ::= "for" "(" Type Ident "=" Expr "to" Expr ")" Stmt;
 -- Types ---------------------------------------------------
 
 Int.       Type ::= "int" ;

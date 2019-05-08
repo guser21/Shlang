@@ -100,7 +100,8 @@ declValueTypeLists namesAndTypes newConstNames = do
   (env, constName, shadowable) <- ask
   let nameTypeFlat =
         concatMap (\(t, idents) -> map (\e -> (t, e)) idents) namesAndTypes
-  let consts = foldl (\acc (t, ident) -> Set.delete ident acc) constName nameTypeFlat
+  let consts =
+        foldl (\acc (t, ident) -> Set.delete ident acc) constName nameTypeFlat
   nenv <-
     foldl
       (\acc (type_, ident) -> do
@@ -278,6 +279,8 @@ getStmtType (VRet:tl) expectedType =
          (\res -> return $ SimpleType Void : res)
 getStmtType (Print expr:tl) expectedType =
   getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+getStmtType (Break:tl) expectedType = getStmtType tl expectedType
+getStmtType (Continue:tl) expectedType = getStmtType tl expectedType
 getStmtType (Cond expr stmt:tl) expectedType = do
   stmtType <- getBlockType (Block [stmt]) expectedType
   condType <- getExprType expr
