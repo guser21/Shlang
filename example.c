@@ -1,17 +1,10 @@
-final int a = 12;
-int b = 23;
-string bvpuct = "dk";
 int main()
 {
-	int a = 12;
-	while (a > 0)
+	while (true)
 	{
-		print(a);
-		if (a % 2 == 1)
-		{
-			break;
-		}
-		a--;
+		int a=12;
+		break;
 	}
+	int a=12;
 	return 0;
 }

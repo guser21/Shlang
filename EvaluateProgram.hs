@@ -268,13 +268,15 @@ evalBlock (h:tl) =
     Break -> do
       (_, bc) <- ask
       case bc of
-        Nothing           -> evalBlock tl
-        Just (break, continue) -> evalBlock break
+        Nothing -> evalBlock tl
+        Just (break, continue) ->
+          local (\(e, _) -> (e, Nothing)) (evalBlock break)
     Continue -> do
       (_, bc) <- ask
       case bc of
-        Nothing           -> evalBlock tl
-        Just (break, continue) -> evalBlock continue
+        Nothing -> evalBlock tl
+        Just (break, continue) ->
+          local (\(e, _) -> (e, Nothing)) (evalBlock continue)
     SExp expr -> evalExpr expr >> evalBlock tl
 evalBlock [] = return Nothing
 

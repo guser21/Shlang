@@ -9,6 +9,3 @@
 + final keyword
 + break continue
 
-
-Todo
-optimize n^2 decl items block in typechecker
