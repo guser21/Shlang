@@ -8,6 +8,7 @@ import           Control.Monad.Identity
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Writer
+import           Data.Foldable
 import qualified Data.Map               as Map
 import           Data.Maybe
 import qualified Data.Set               as Set
@@ -48,7 +49,9 @@ callStackLimit = 20000
 registerFunCall :: Ident -> Result ()
 registerFunCall funIdent = do
   (st, l, scount) <- get
-  when (scount > callStackLimit) (throwError $ "Stack Overflow" ++ show funIdent)
+  when
+    (scount > callStackLimit)
+    (throwError $ "Stack Overflow" ++ show funIdent)
   modify (\(st, l, scount) -> (st, l, scount + 1))
   return ()
 
@@ -201,7 +204,6 @@ runBody curInd loc end stmt =
     (modifyMem (Map.insert loc (NumVal curInd)) >> evalBlock [stmt] >>
      runBody (curInd + 1) loc end stmt)
 
--- cleanMem :: () -> Result ()
 cleanMem = do
   env <- ask
   (mem, loc, stackCount) <- get
