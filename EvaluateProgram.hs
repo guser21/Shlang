@@ -21,6 +21,8 @@ data Value
   | StrVal { str :: String }
   | FunVal { fun :: TopDef }
   | VoidVal
+  | BreakVal
+  | ContVal
   deriving (Eq)
 
 instance Show Value where
@@ -30,12 +32,14 @@ instance Show Value where
       NumVal n  -> show n
       StrVal s  -> s
       FunVal f  -> show f
+      BreakVal  -> "breakVal"
+      ContVal   -> "contVal "
       VoidVal   -> "voidVal"
 
 type Loc = Integer
 
 -- Ident-> loc, break,continue
-type Env = (Map.Map Ident Loc, Maybe ([Stmt], [Stmt]))
+type Env = Map.Map Ident Loc
 
 type Mem = Map.Map Loc Value
 
@@ -78,7 +82,7 @@ getValByLoc loc = do
 
 getValByIdent :: Ident -> Result Value
 getValByIdent var = do
-  (env, _) <- ask
+  env <- ask
   (st, l, _) <- get
   let varLoc = Map.lookup var env
   case varLoc of
@@ -87,7 +91,7 @@ getValByIdent var = do
 
 modifyVariable :: Ident -> (Value -> Value) -> Result ()
 modifyVariable var f = do
-  (env, _) <- ask
+  env <- ask
   (st, l, _) <- get
   let (Ident varname) = var
   let varLoc = Map.lookup var env
@@ -115,7 +119,7 @@ declValue nameIdent resVal = do
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
-  return (local (\(env, bc) -> (Map.insert nameIdent l env, bc)))
+  return (local (Map.insert nameIdent l))
 
 declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
@@ -150,7 +154,7 @@ runFunctions (h:tl) = do
         declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
 runFunctions [] = do
-  (env, _) <- ask
+  env <- ask
   case Map.lookup mainFunc env of
     Just mainLoc -> do
       funRes <- getValByLoc mainLoc
@@ -163,9 +167,7 @@ runProgramIO :: Program -> IO ()
 runProgramIO prog = do
   ans <-
     runExceptT
-      (runStateT
-         (runReaderT (runProgram prog) (Map.empty, Nothing))
-         (Map.empty, 0, 0))
+      (runStateT (runReaderT (runProgram prog) Map.empty) (Map.empty, 0, 0))
   case ans of
     (Left errMesg) -> putStrLn $ "Runtime error: " ++ errMesg
     _              -> return () --ended as supposed
@@ -179,10 +181,7 @@ evalFunction (FnDef funType funName argDefs block) argVals = do
   funArgDeclCont <- declValueList argIdent argVals
   resVal <- funArgDeclCont (evalBlock stmts)
   case resVal of
-    Nothing ->
-      if funType == Void
-        then return VoidVal
-        else throwError $ "No return statemant in " ++ rawName
+    Nothing  -> return VoidVal
     Just val -> return val
 
 declValueInit :: Type -> [Item] -> [Result Value]
@@ -201,9 +200,8 @@ declIdents =
          NoInit ident    -> ident
          Init ident expr -> ident)
 
-
 cleanMem = do
-  (env, _) <- ask
+  env <- ask
   (mem, loc, stackCount) <- get
   let nMem =
         foldl
@@ -218,20 +216,22 @@ cleanMem = do
 runForBody curInd loc end stmt =
   when
     (curInd <= end)
-    (modifyMem (Map.insert loc (NumVal curInd)) >> evalBlock [BStmt $ Block [stmt]]>>
-      runForBody (curInd + 1) loc end stmt)
-  
+    (modifyMem (Map.insert loc (NumVal curInd)) >>
+     evalBlock [BStmt $ Block [stmt]] >>
+     runForBody (curInd + 1) loc end stmt)
+
 runWhile expr stmt = do
   BoolVal e <- evalExpr expr
   if e
     then evalBlock [BStmt $ Block [stmt]] >>=
       -- for the case someone broke out of the loop etc
-          (\res ->
+         (\res ->
             case res of
-              Nothing -> runWhile expr stmt
-              _       -> return res)
+              Nothing       -> runWhile expr stmt
+              Just ContVal  -> runWhile expr stmt
+              Just BreakVal -> return Nothing
+              Just _        -> return res)
     else return Nothing
-
 
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) =
@@ -257,9 +257,7 @@ evalBlock (h:tl) =
       (NumVal start) <- evalExpr expr1
       (NumVal end) <- evalExpr expr2
       loc <- newloc
-      local
-        (\(env, bc) -> (Map.insert ident loc env, bc))
-        (runForBody start loc end stmt) >>
+      local (Map.insert ident loc) (runForBody start loc end stmt) >>
         evalBlock tl
     Ret expr -> (Just <$> evalExpr expr) >>= returnFromFunc
     VRet -> returnFromFunc (Just VoidVal)
@@ -273,29 +271,14 @@ evalBlock (h:tl) =
                then evalAsBlock stmt1
                else evalAsBlock stmt2)
     While expr stmt -> do
-      res <-
-        local
-          (\(env, _) -> (env, Just (tl, While expr stmt : tl)))
-          (runWhile expr stmt)
+      res <- runWhile expr stmt
       case res of
         Nothing -> evalBlock tl
         Just _  -> return res
-    Break -> do
-      (_, bc) <- ask
-      case bc of
-        Nothing -> evalBlock tl
-        Just (break, continue) ->
-          local (\(e, _) -> (e, Nothing)) (evalBlock break)
-    Continue -> do
-      (_, bc) <- ask
-      case bc of
-        Nothing -> evalBlock tl
-        Just (break, continue) ->
-          local (\(e, _) -> (e, Nothing)) (evalBlock continue)
+    Break -> return $ Just BreakVal
+    Continue -> return $ Just ContVal
     SExp expr -> evalExpr expr >> evalBlock tl
-evalBlock [] = return $ Just VoidVal
-
-
+evalBlock [] = return Nothing
 
 evalExpr :: Expr -> Result Value
 evalExpr x =

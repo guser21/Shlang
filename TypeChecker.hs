@@ -29,13 +29,18 @@ instance Show ValType where
       NoRetType        -> "no return type"
       SimpleType type_ -> show type_
 
+data Context
+  = WhileContext
+  | OtherContext
+  deriving (Eq, Show)
+
 type Loc = Integer
 
 type ConstIdent = Set.Set Ident
 
 type OverShadowableIdent = Set.Set Ident
 
-type Env = (Map.Map Ident Loc, ConstIdent, OverShadowableIdent)
+type Env = (Map.Map Ident Loc, ConstIdent, OverShadowableIdent, Context)
 
 type Mem = Map.Map Loc ValType
 
@@ -61,7 +66,7 @@ getTypeByLoc loc = do
 
 getTypeByIdent :: Ident -> Result ValType
 getTypeByIdent var = do
-  (env, _, _) <- ask
+  (env, _, _, _) <- ask
   (st, l) <- get
   let varLoc = Map.lookup var env
   case varLoc of
@@ -82,7 +87,7 @@ getIdentFromItem (Init ident expr) = ident
 
 declValue :: Ident -> Result ValType -> Result (Result a -> Result a)
 declValue nameIdent resVal = do
-  (env, constName, shadowable) <- ask
+  (env, constName, shadowable, context) <- ask
   when
     (Set.notMember nameIdent shadowable && Map.member nameIdent env)
     (throwError $ "name " ++ show nameIdent ++ " is already in use")
@@ -91,13 +96,13 @@ declValue nameIdent resVal = do
   modifyMem (Map.insert l val)
   return
     (local
-       (\(env, constNames, shadowVar) ->
-          (Map.insert nameIdent l env, constNames, shadowVar)))
+       (\(env, constNames, shadowVar, context) ->
+          (Map.insert nameIdent l env, constNames, shadowVar, context)))
 
 declValueTypeLists ::
      [(Type, [Ident])] -> Set.Set Ident -> Result (Result a -> Result a)
 declValueTypeLists namesAndTypes newConstNames = do
-  (env, constName, shadowable) <- ask
+  (env, constName, shadowable, context) <- ask
   let nameTypeFlat =
         concatMap (\(t, idents) -> map (\e -> (t, e)) idents) namesAndTypes
   let consts =
@@ -115,7 +120,8 @@ declValueTypeLists namesAndTypes newConstNames = do
          return (Map.insert ident l curEnv))
       (return env)
       nameTypeFlat
-  return $ local (const (nenv, consts `Set.union` newConstNames, shadowable))
+  return $
+    local (const (nenv, consts `Set.union` newConstNames, shadowable, context))
 
 mainFunc = Ident "main"
 
@@ -147,7 +153,7 @@ checkTypes (Program topDefs)
                FnDef reType ident args b -> True
                _                         -> False)
           topDefs
-  (env, consts, shadow) <- ask
+  (env, consts, shadow, _) <- ask
   let constIdents = foldl (flip Set.insert) consts globalFinalIdents
   traverse_
     (\(type_, items) ->
@@ -166,7 +172,7 @@ checkAllFunctions (h:tl) =
       declCont (checkAllFunctions tl)
     _ -> throwError "unexpected type in fun match"
 checkAllFunctions [] = do
-  (env, constName, _) <- ask
+  (env, constName, _, _) <- ask
   traverse_
     (\(_, loc) ->
        getTypeByLoc loc >>=
@@ -198,8 +204,8 @@ getBlockType (Block stmts) expectedType = do
       NoRetType
       stmtTypes
 
-markOvershadowable (nameLocks, consts, _) =
-  (nameLocks, consts, Set.fromList $ Map.keys nameLocks)
+markOvershadowable (nameLocks, consts, _, context) =
+  (nameLocks, consts, Set.fromList $ Map.keys nameLocks, context)
 
 checkDeclTypes ::
      Foldable t
@@ -220,7 +226,7 @@ checkDeclTypes type_ =
 
 checkIfConst :: Ident -> Result ()
 checkIfConst ident = do
-  (_, constNames, _) <- ask
+  (_, constNames, _, _) <- ask
   when
     (Set.member ident constNames)
     (throwError $ "cannot modify const variable " ++ show ident)
@@ -240,11 +246,11 @@ getStmtType (Decl type_ items:tl) expectedType = do
   declCont (getStmtType tl expectedType)
   ---
 getStmtType (DeclFinal type_ items:tl) expectedType = do
-  (env, consts, shadowVar) <- ask
+  (env, consts, shadowVar, context) <- ask
   let idents = map getIdentFromItem items
   let newconsts = foldl (flip Set.insert) consts idents
   local
-    (const (env, newconsts, shadowVar))
+    (const (env, newconsts, shadowVar, context))
     (getStmtType (Decl type_ items : tl) expectedType)
 getStmtType (Ass ident expr:tl) expectedType = do
   checkIfConst ident
@@ -279,8 +285,16 @@ getStmtType (VRet:tl) expectedType =
          (\res -> return $ SimpleType Void : res)
 getStmtType (Print expr:tl) expectedType =
   getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
-getStmtType (Break:tl) expectedType = getStmtType tl expectedType
-getStmtType (Continue:tl) expectedType = getStmtType tl expectedType
+getStmtType (Break:tl) expectedType = do
+  (_, _, _, context) <- ask
+  case context of
+    WhileContext -> getStmtType tl expectedType
+    OtherContext -> throwError "break statement is out of while context"
+getStmtType (Continue:tl) expectedType = do
+  (_, _, _, context) <- ask
+  case context of
+    WhileContext -> getStmtType tl expectedType
+    OtherContext -> throwError "continue statement is out of while context"
 getStmtType (Cond expr stmt:tl) expectedType = do
   stmtType <- getBlockType (Block [stmt]) expectedType
   condType <- getExprType expr
@@ -302,7 +316,10 @@ getStmtType (Cond expr stmt:tl) expectedType = do
       throwError ("incompatible return type in if statement " ++ show stmtType)
 getStmtType (While expr stmt:tl) expectedType = do
   exprType <- getExprType expr
-  stmtType <- getBlockType (Block [stmt]) expectedType
+  stmtType <-
+    local
+      (\(a1, a2, a3, _) -> (a1, a2, a3, WhileContext))
+      (getBlockType (Block [stmt]) expectedType)
   when
     (exprType /= SimpleType Bool)
     (throwError "incompatible expression type in while condition")
@@ -323,8 +340,8 @@ getStmtType (ConstFor type_ ident exprFrom exprTo stmt:tl) expectedType = do
   modifyMem (Map.insert l (SimpleType Int))
   stmtType <-
     local
-      (\(env, consts, shadowVar) ->
-         (Map.insert ident l env, Set.insert ident consts, shadowVar))
+      (\(env, consts, shadowVar, context) ->
+         (Map.insert ident l env, Set.insert ident consts, shadowVar, context))
       (getBlockType (Block [stmt]) expectedType)
   when
     (stmtType /= expectedType && stmtType /= NoRetType)
@@ -439,7 +456,9 @@ checkProgramTypesIO prog = do
   ans <-
     runExceptT
       (runStateT
-         (runReaderT (checkTypes prog) (Map.empty, Set.empty, Set.empty))
+         (runReaderT
+            (checkTypes prog)
+            (Map.empty, Set.empty, Set.empty, OtherContext))
          (Map.empty, 0))
   case ans of
     (Left errMesg) -> putStrLn ("Type error: " ++ errMesg) >> return False
