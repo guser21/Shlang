@@ -201,11 +201,6 @@ declIdents =
          NoInit ident    -> ident
          Init ident expr -> ident)
 
-runBody curInd loc end stmt =
-  when
-    (curInd <= end)
-    (modifyMem (Map.insert loc (NumVal curInd)) >> evalBlock [stmt] >>
-     runBody (curInd + 1) loc end stmt)
 
 cleanMem = do
   (env, _) <- ask
@@ -220,11 +215,28 @@ cleanMem = do
           (Map.toList env)
    in put (nMem, loc, stackCount)
 
+runForBody curInd loc end stmt =
+  when
+    (curInd <= end)
+    (modifyMem (Map.insert loc (NumVal curInd)) >> evalBlock [BStmt $ Block [stmt]]>>
+      runForBody (curInd + 1) loc end stmt)
+  
+runWhile expr stmt = do
+  BoolVal e <- evalExpr expr
+  if e
+    then evalBlock [BStmt $ Block [stmt]] >>=
+      -- for the case someone broke out of the loop etc
+          (\res ->
+            case res of
+              Nothing -> runWhile expr stmt
+              _       -> return res)
+    else return Nothing
+
+
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) =
   case h of
     Empty -> evalBlock tl
-  --TODO remove allocated locs after exiting block
     BStmt (Block stmts) -> do
       blockRes <- local id (evalBlock stmts)
       cleanMem
@@ -247,7 +259,7 @@ evalBlock (h:tl) =
       loc <- newloc
       local
         (\(env, bc) -> (Map.insert ident loc env, bc))
-        (runBody start loc end stmt) >>
+        (runForBody start loc end stmt) >>
         evalBlock tl
     Ret expr -> (Just <$> evalExpr expr) >>= returnFromFunc
     VRet -> returnFromFunc (Just VoidVal)
@@ -260,11 +272,14 @@ evalBlock (h:tl) =
              if cond
                then evalAsBlock stmt1
                else evalAsBlock stmt2)
-    While expr stmt ->
-      let whileLoop = CondElse expr (BStmt $ Block [stmt, whileLoop]) Empty
-       in local
-            (\(env, _) -> (env, Just (tl, While expr stmt : tl)))
-            (evalBlock $ whileLoop : tl)
+    While expr stmt -> do
+      res <-
+        local
+          (\(env, _) -> (env, Just (tl, While expr stmt : tl)))
+          (runWhile expr stmt)
+      case res of
+        Nothing -> evalBlock tl
+        Just _  -> return res
     Break -> do
       (_, bc) <- ask
       case bc of
@@ -278,7 +293,9 @@ evalBlock (h:tl) =
         Just (break, continue) ->
           local (\(e, _) -> (e, Nothing)) (evalBlock continue)
     SExp expr -> evalExpr expr >> evalBlock tl
-evalBlock [] = return Nothing
+evalBlock [] = return $ Just VoidVal
+
+
 
 evalExpr :: Expr -> Result Value
 evalExpr x =
