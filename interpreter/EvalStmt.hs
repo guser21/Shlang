@@ -47,7 +47,7 @@ evalFunction (FnDef funType funName argDefs block) argVals = do
   case resVal of
     Nothing  -> return VoidVal
     Just val -> return val
-
+cleanMem :: Result ()
 cleanMem = do
   env <- ask
   (mem, loc, stackCount) <- get
@@ -172,7 +172,7 @@ evalBlock (h:tl) =
     Empty -> evalBlock tl
     BStmt (Block stmts) -> do
       blockRes <- local id (evalBlock stmts)
-      cleanMem
+      -- cleanMem
       case blockRes of
         Nothing       -> evalBlock tl
         Just finalVal -> return (Just finalVal)
@@ -211,4 +211,5 @@ evalBlock (h:tl) =
     Break -> return $ Just BreakVal
     Continue -> return $ Just ContVal
     SExp expr -> evalExpr expr >> evalBlock tl
+
 evalBlock [] = return Nothing
