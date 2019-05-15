@@ -47,6 +47,9 @@ evalFunction (FnDef funType funName argDefs block) argVals = do
   case resVal of
     Nothing  -> return VoidVal
     Just val -> return val
+
+  --wrong implementation
+--what if overshadows a variable
 cleanMem :: Result ()
 cleanMem = do
   env <- ask

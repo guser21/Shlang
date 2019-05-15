@@ -68,12 +68,13 @@ getStmtType (Decl type_ items:tl) expectedType = do
   declCont (getStmtType tl expectedType)
   ---
 getStmtType (DeclFinal type_ items:tl) expectedType = do
+  typeCheck <- checkDeclTypes type_ items
   (env, consts, shadowVar, context) <- ask
   let idents = map getIdentFromItem items
   let newconsts = foldl (flip Set.insert) consts idents
-  local
-    (const (env, newconsts, shadowVar, context))
-    (getStmtType (Decl type_ items : tl) expectedType)
+  declCont <- declValueTypeLists [(type_, map getIdentFromItem items)] newconsts
+  declCont (getStmtType tl expectedType)
+
 getStmtType (Ass ident expr:tl) expectedType = do
   checkIfConst ident
   identType <- getTypeByIdent ident
