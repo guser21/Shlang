@@ -31,7 +31,11 @@ getExprType (ELitInt integer) = return $ SimpleType Int
 getExprType ELitTrue = return $ SimpleType Bool
 getExprType ELitFalse = return $ SimpleType Bool
 getExprType (EApp ident exprs) = do
-  (FunType (FnDef type_ ident args block)) <- getTypeByIdent ident
+  funVal <- getTypeByIdent ident
+  case funVal of
+    FunType _ -> return ()
+    _ -> throwError $ "cannot call " ++ show ident
+  let (FunType (FnDef type_ ident args block))=funVal
   let argTypes = map (\(Arg argType _) -> SimpleType argType) args
   let exprAndTypes = zip exprs argTypes
   if length args /= length exprs
