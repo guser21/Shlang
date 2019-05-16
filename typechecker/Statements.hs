@@ -83,7 +83,6 @@ getStmtType (DeclFinal type_ items:tl) expectedType = do
   let newconsts = foldl (flip Set.insert) consts idents
   declCont <- declValueTypeLists [(type_, map getIdentFromItem items)] newconsts
   declCont (getStmtType tl expectedType)
-
 getStmtType (Ass ident expr:tl) expectedType = do
   checkIfConst ident
   identType <- getTypeByIdent ident
@@ -199,7 +198,7 @@ getStmtType (CondElse expr stmt1 stmt2:tl) expectedType = do
           | t1 == t2 && t1 == expectedType ->
             getStmtType tl expectedType >>= (\res -> return $ t1 : res)
         _ -> throwError "incompatible return type in if else condition"
-getStmtType (FnInDef type_ ident args block : tl) expectedType = do
-   checkFunction (FnDef type_ ident args block)
-   declCont <- declValue ident (return $ FunType (FnDef type_ ident args block))
-   declCont (getStmtType tl expectedType)
+getStmtType (FnInDef type_ ident args block:tl) expectedType = do
+  declCont <- declValue ident (return $ FunType (FnDef type_ ident args block))
+  declCont (checkFunction (FnDef type_ ident args block) >> return [])
+  declCont (getStmtType tl expectedType)
