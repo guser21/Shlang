@@ -1,6 +1,6 @@
 # Shlang
 
-### Get your Shlang in your hands!
+### Take your Shlang in your hands!
 ![](shlang.png)
 
 Features:
