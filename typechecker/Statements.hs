@@ -53,6 +53,15 @@ checkIfConst ident = do
     (Set.member ident constNames)
     (throwError $ "cannot modify const variable " ++ show ident)
 
+checkFunction (FnDef retType ident argDefs block) = do
+  let argDecl =
+        map (\(Arg argType argIdent) -> Decl argType [NoInit argIdent]) argDefs
+  let Block stmts = block
+  btype <- getBlockType (Block $ argDecl ++ stmts) (SimpleType retType)
+  if btype == SimpleType retType || (btype == NoRetType && retType == Void)
+    then return True
+    else throwError $ "function " ++ show ident ++ " has a wrong return type"
+
 getStmtType :: [Stmt] -> ValType -> Result [ValType]
 getStmtType [] expectedType = return [NoRetType]
 getStmtType (Empty:tl) expectedType =
@@ -190,3 +199,7 @@ getStmtType (CondElse expr stmt1 stmt2:tl) expectedType = do
           | t1 == t2 && t1 == expectedType ->
             getStmtType tl expectedType >>= (\res -> return $ t1 : res)
         _ -> throwError "incompatible return type in if else condition"
+getStmtType (FnInDef type_ ident args block : tl) expectedType = do
+   checkFunction (FnDef type_ ident args block)
+   declCont <- declValue ident (return $ FunType (FnDef type_ ident args block))
+   declCont (getStmtType tl expectedType)
