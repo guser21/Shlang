@@ -37,14 +37,15 @@ transStmt x = case x of
   Decr ident -> failure x
   Ret expr -> failure x
   VRet -> failure x
-  Print expr -> failure x
   Cond expr stmt -> failure x
   CondElse expr stmt1 stmt2 -> failure x
   While expr stmt -> failure x
+  SExp expr -> failure x
+  FnInDef type_ ident args block -> failure x
+  ConstFor type_ ident expr1 expr2 stmt -> failure x
   Break -> failure x
   Continue -> failure x
-  SExp expr -> failure x
-  ConstFor type_ ident expr1 expr2 stmt -> failure x
+  Print expr -> failure x
 transItem :: Item -> Result
 transItem x = case x of
   NoInit ident -> failure x

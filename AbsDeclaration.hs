@@ -33,14 +33,15 @@ data Stmt
     | Decr Ident
     | Ret Expr
     | VRet
-    | Print Expr
     | Cond Expr Stmt
     | CondElse Expr Stmt Stmt
     | While Expr Stmt
+    | SExp Expr
+    | FnInDef Type Ident [Arg] Block
+    | ConstFor Type Ident Expr Expr Stmt
     | Break
     | Continue
-    | SExp Expr
-    | ConstFor Type Ident Expr Expr Stmt
+    | Print Expr
   deriving (Eq, Ord, Show, Read)
 
 data Item = NoInit Ident | Init Ident Expr

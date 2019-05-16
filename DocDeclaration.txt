@@ -76,14 +76,15 @@ All other symbols are terminals.
   |  |  **|**  | //Ident// ``--`` ``;`` 
   |  |  **|**  | ``return`` //Expr// ``;`` 
   |  |  **|**  | ``return`` ``;`` 
-  |  |  **|**  | ``print`` ``(`` //Expr// ``)`` 
   |  |  **|**  | ``if`` ``(`` //Expr// ``)`` //Stmt// 
   |  |  **|**  | ``if`` ``(`` //Expr// ``)`` //Stmt// ``else`` //Stmt// 
   |  |  **|**  | ``while`` ``(`` //Expr// ``)`` //Stmt// 
+  |  |  **|**  | //Expr// ``;`` 
+  |  |  **|**  | //Type// //Ident// ``(`` //[Arg]// ``)`` //Block// 
+  |  |  **|**  | ``for`` ``(`` //Type// //Ident// ``=`` //Expr// ``to`` //Expr// ``)`` //Stmt// 
   |  |  **|**  | ``break`` ``;`` 
   |  |  **|**  | ``continue`` ``;`` 
-  |  |  **|**  | //Expr// ``;`` 
-  |  |  **|**  | ``for`` ``(`` //Type// //Ident// ``=`` //Expr// ``to`` //Expr// ``)`` //Stmt// 
+  |  |  **|**  | ``print`` ``(`` //Expr// ``)`` ``;`` 
   | //Item// | -> | //Ident// 
   |  |  **|**  | //Ident// ``=`` //Expr// 
   | //[Item]// | -> | //Item// 

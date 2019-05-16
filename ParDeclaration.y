@@ -92,14 +92,15 @@ Stmt : ';' { AbsDeclaration.Empty }
      | Ident '--' ';' { AbsDeclaration.Decr $1 }
      | 'return' Expr ';' { AbsDeclaration.Ret $2 }
      | 'return' ';' { AbsDeclaration.VRet }
-     | 'print' '(' Expr ')' { AbsDeclaration.Print $3 }
      | 'if' '(' Expr ')' Stmt { AbsDeclaration.Cond $3 $5 }
      | 'if' '(' Expr ')' Stmt 'else' Stmt { AbsDeclaration.CondElse $3 $5 $7 }
      | 'while' '(' Expr ')' Stmt { AbsDeclaration.While $3 $5 }
+     | Expr ';' { AbsDeclaration.SExp $1 }
+     | Type Ident '(' ListArg ')' Block { AbsDeclaration.FnInDef $1 $2 $4 $6 }
+     | 'for' '(' Type Ident '=' Expr 'to' Expr ')' Stmt { AbsDeclaration.ConstFor $3 $4 $6 $8 $10 }
      | 'break' ';' { AbsDeclaration.Break }
      | 'continue' ';' { AbsDeclaration.Continue }
-     | Expr ';' { AbsDeclaration.SExp $1 }
-     | 'for' '(' Type Ident '=' Expr 'to' Expr ')' Stmt { AbsDeclaration.ConstFor $3 $4 $6 $8 $10 }
+     | 'print' '(' Expr ')' ';' { AbsDeclaration.Print $3 }
 Item :: { Item }
 Item : Ident { AbsDeclaration.NoInit $1 }
      | Ident '=' Expr { AbsDeclaration.Init $1 $3 }
