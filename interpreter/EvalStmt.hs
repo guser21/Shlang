@@ -47,8 +47,8 @@ evalFunction (FnDef funType funName argDefs block) argVals = do
   case resVal of
     Nothing  -> return VoidVal
     Just val -> return val
-
   --wrong implementation
+
 --what if overshadows a variable
 cleanMem :: Result ()
 cleanMem = do
@@ -182,6 +182,15 @@ evalBlock (h:tl) =
     Decl type_ items -> do
       declCont <- declValueList (declIdents items) (declValueInit type_ items)
       declCont (evalBlock tl)
+    FnInDef reType ident args block -> do
+      declCont <-
+        case reType of
+          Void ->
+            let withRetVoidFun =
+                  FnDef reType ident args (Block [BStmt block, VRet])
+             in declValue ident (return $ FunVal withRetVoidFun)
+          _ -> declValue ident (return $ FunVal (FnDef reType ident args block))
+      declCont (evalBlock tl)
     DeclFinal type_ items -> evalBlock (Decl type_ items : tl)
     Ass ident expr ->
       evalExpr expr >>= (modifyVariable ident . const) >> evalBlock tl
@@ -214,5 +223,4 @@ evalBlock (h:tl) =
     Break -> return $ Just BreakVal
     Continue -> return $ Just ContVal
     SExp expr -> evalExpr expr >> evalBlock tl
-
 evalBlock [] = return Nothing

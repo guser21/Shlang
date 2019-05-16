@@ -18,7 +18,6 @@ import           EvalUtils
 import           System.Exit            (exitFailure, exitSuccess)
 import           System.IO
 
-
 mainFunc = Ident "main"
 
 runProgram :: Program -> Result ()
@@ -27,9 +26,7 @@ runProgram (Program topDefs) = runFunctions topDefs
 runFunctions :: [TopDef] -> Result ()
 runFunctions (h:tl) = do
   declCont <-
-    case h
-      --add return statement to void functions for stack counting
-          of
+    case h of
       FnDef reType ident args block ->
         case reType of
           Void ->
