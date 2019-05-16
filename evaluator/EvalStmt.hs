@@ -175,7 +175,6 @@ evalBlock (h:tl) =
     Empty -> evalBlock tl
     BStmt (Block stmts) -> do
       blockRes <- local id (evalBlock stmts)
-      -- cleanMem
       case blockRes of
         Nothing       -> evalBlock tl
         Just finalVal -> return (Just finalVal)
