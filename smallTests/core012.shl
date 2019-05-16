@@ -1,0 +1,25 @@
+/* Test arithmetic and comparisons. */
+
+int main() {
+    int x = 56;
+    int y = -23;
+    print(x+y);
+    print(x-y);
+    print(x*y);
+    print(45/2);
+    print(78%3);
+    printBool(x-y > x+y);
+    printBool(x/y <= x*y);
+    print("string"+" "+"concatenation");
+    return 0 ;
+}
+
+void printBool(boolean b) {
+  if (b) {
+    print("true");
+    return;
+  } else {
+    print("false");
+    return;
+ }
+}

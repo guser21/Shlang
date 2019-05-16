@@ -1,6 +1,5 @@
 - type inference 
 - show instance for idents
-? runtime exception ???
 ? callcc
 
 + detect stack overflow

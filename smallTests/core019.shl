@@ -1,0 +1,26 @@
+int main() {
+  int i = 78;
+  {
+    int i = 1;
+    print(i);
+  }
+  print(i);
+  while (i > 76) {
+    i--;
+    print(i);
+   // this is a little tricky
+   // on the right hand side, i refers to the outer i
+   int i = i + 7;
+   print(i);
+  }
+  print(i);
+  if (i > 4) {
+    int i = 4;
+    print(i);
+  } else {
+    print("foo");
+  } 
+  print(i);
+  return 0 ;
+
+}

@@ -1,5 +1,5 @@
-for i in ./*.lat
+for i in ./*.shl
 do
-    b=$(basename $i .lat)
-    (./shlang ./$b.lat | diff - ./$b.output || echo $i)
+    b=$(basename $i .shl)
+    (./../interpreter ./$b.shl | diff - ./$b.output || echo $i)
 done
