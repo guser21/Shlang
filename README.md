@@ -1,26 +1,25 @@
 # Shlang
 
 ### Take your Shlang in your hands!
-![](shlang.png)
-
+<img src="shlang.png" width="250">
 Features:
 
-1 Simple types: void, int, bool, string.
+* Simple types: void, int, bool, string.
 
-2 Arithmetics, assginement, variables and all basic features of any imperative languge.
+* Arithmetics, assginement, variables and all basic features of any imperative languge.
 
-3 While break continue.
+* While break continue.
 
-4 Conditional branching: if , else statements. 
+* Conditional branching: if , else statements. 
 
-5 for loops with constant iterator. 
+* for loops with constant iterator. 
 
-6 Functions with recursion. Nested functions with recursion. 
+* Functions with recursion. Nested functions with recursion. 
 
-8 Overshadowing variables 
+* Overshadowing variables 
 
-9 Runtime exceptions.
+* Runtime exceptions.
 
-10 Static typechecking. Type errors. 
+* Static typechecking. Type errors. 
 
-11 Final variables. 
+* Final variables. 
