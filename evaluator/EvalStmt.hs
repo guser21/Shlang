@@ -39,11 +39,16 @@ registerFunCall funIdent = do
 -- --Todo typecheckint
 evalFunction :: TopDef -> Env -> [Result Value] -> Result Value
 evalFunction (FnDef funType funName argDefs block) env argVals = do
+  curEnv <- ask
   let argIdent = map (\(Arg argType argIdent) -> argIdent) argDefs
   let Block stmts = block
   let Ident rawName = funName
+  let curFuncLoc = fromJust $ Map.lookup funName curEnv
   funArgDeclCont <- declValueList argIdent argVals
-  resVal <- local (const env) (funArgDeclCont (evalBlock stmts))
+  resVal <-
+    local
+      (const (Map.insert funName curFuncLoc env))
+      (funArgDeclCont (evalBlock stmts))
   case resVal of
     Nothing  -> return VoidVal
     Just val -> return val
@@ -74,7 +79,7 @@ evalExpr x =
     EApp ident args -> do
       registerFunCall ident
       let argRes = map evalExpr args
-      (FunVal fun env ) <- getValByIdent ident
+      (FunVal fun env) <- getValByIdent ident
       evalFunction fun env argRes
     EString string -> return (StrVal string)
     Neg expr -> evalExpr expr >>= (\(NumVal v) -> return $ NumVal (-v))
@@ -189,7 +194,10 @@ evalBlock (h:tl) =
             let withRetVoidFun =
                   FnDef reType ident args (Block [BStmt block, VRet])
              in declValue ident (return $ FunVal withRetVoidFun curEnv)
-          _ -> declValue ident (return $ FunVal (FnDef reType ident args block) curEnv)
+          _ ->
+            declValue
+              ident
+              (return $ FunVal (FnDef reType ident args block) curEnv)
       declCont (evalBlock tl)
     DeclFinal type_ items -> evalBlock (Decl type_ items : tl)
     Ass ident expr ->

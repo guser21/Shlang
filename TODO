@@ -8,3 +8,8 @@
 + final keyword
 + break continue
 
+todo
+int a=12;
+void foo(int a,int a){
+    print(a);
+}

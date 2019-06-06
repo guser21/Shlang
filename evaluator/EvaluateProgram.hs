@@ -25,7 +25,7 @@ runProgram (Program topDefs) = runFunctions topDefs
 
 runFunctions :: [TopDef] -> Result ()
 runFunctions (h:tl) = do
-  curEnv <- ask 
+  curEnv <- ask
   declCont <-
     case h of
       FnDef reType ident args block ->
@@ -41,6 +41,7 @@ runFunctions (h:tl) = do
         declValueList (declIdents items) (declValueInit type_ items)
   declCont (runFunctions tl)
 runFunctions [] = do
+  setFunctionsEnvAsGlobal
   env <- ask
   case Map.lookup mainFunc env of
     Just mainLoc -> do
@@ -50,6 +51,16 @@ runFunctions [] = do
       return ()
     Nothing -> throwError "Cannot find definition of function main"
 
+setFunctionsEnvAsGlobal = do
+  globalEnv <- ask
+  (mem, l, scount) <- get
+  traverse_
+    (\(k, v) ->
+       case v of
+         (FunVal fun env) -> modifyMem (Map.insert k (FunVal fun globalEnv))
+         _                -> modifyMem id)
+    (Map.toList mem)
+  
 runProgramIO :: Program -> IO ()
 runProgramIO prog = do
   ans <-
