@@ -71,8 +71,8 @@ declValue nameIdent resVal = do
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
+  
   return (local (Map.insert nameIdent l))
-
 declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
   declCont <- declValue fn fv

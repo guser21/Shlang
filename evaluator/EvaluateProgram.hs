@@ -25,6 +25,7 @@ runProgram (Program topDefs) = runFunctions topDefs
 
 runFunctions :: [TopDef] -> Result ()
 runFunctions (h:tl) = do
+  curEnv <- ask 
   declCont <-
     case h of
       FnDef reType ident args block ->
@@ -32,8 +33,8 @@ runFunctions (h:tl) = do
           Void ->
             let withRetVoidFun =
                   FnDef reType ident args (Block [BStmt block, VRet])
-             in declValue ident (return $ FunVal withRetVoidFun)
-          _ -> declValue ident (return $ FunVal h)
+             in declValue ident (return $ FunVal withRetVoidFun curEnv)
+          _ -> declValue ident (return $ FunVal h curEnv)
       GlobDecl type_ items ->
         declValueList (declIdents items) (declValueInit type_ items)
       GlobFinDecl type_ items ->
@@ -44,8 +45,8 @@ runFunctions [] = do
   case Map.lookup mainFunc env of
     Just mainLoc -> do
       funRes <- getValByLoc mainLoc
-      let FunVal mainFun = funRes
-      evalFunction mainFun []
+      let FunVal mainFun _ = funRes
+      evalFunction mainFun env []
       return ()
     Nothing -> throwError "Cannot find definition of function main"
 

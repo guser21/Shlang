@@ -19,7 +19,7 @@ data Value
   = BoolVal { bool :: Bool }
   | NumVal { num :: Integer }
   | StrVal { str :: String }
-  | FunVal { fun :: TopDef }
+  | FunVal { fun :: TopDef,env :: Env }
   | VoidVal
   | BreakVal
   | ContVal
@@ -31,7 +31,7 @@ instance Show Value where
       BoolVal b -> show b
       NumVal n  -> show n
       StrVal s  -> s
-      FunVal f  -> show f
+      FunVal f _ -> show f
       BreakVal  -> "breakVal"
       ContVal   -> "contVal "
       VoidVal   -> "voidVal"
