@@ -50,7 +50,7 @@ checkTypes (Program topDefs)
                FnDef reType ident args b -> True
                _                         -> False)
           topDefs
-  (env, consts, shadow, _) <- ask
+  (env, consts, _, _) <- ask
   let constIdents = foldl (flip Set.insert) consts globalFinalIdents
   traverse_
     (\(type_, items) ->
@@ -86,8 +86,8 @@ checkProgramTypesIO prog = do
       (runStateT
          (runReaderT
             (checkTypes prog)
-            (Map.empty, Set.empty, Set.empty, OtherContext))
-         (Map.empty, 0))
+            (Map.empty, Set.empty, 0, OtherContext))
+         (Map.empty, 0,0,Set.empty))
   case ans of
     (Left errMesg) -> putStrLn ("Type error: " ++ errMesg) >> return False
     _              -> return True --ended as supposed

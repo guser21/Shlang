@@ -36,7 +36,6 @@ registerFunCall funIdent = do
   modify (\(st, l, scount) -> (st, l, scount + 1))
   return ()
 
--- --Todo typecheckint
 evalFunction :: TopDef -> Env -> [Result Value] -> Result Value
 evalFunction (FnDef funType funName argDefs block) env argVals = do
   curEnv <- ask
@@ -52,9 +51,7 @@ evalFunction (FnDef funType funName argDefs block) env argVals = do
   case resVal of
     Nothing  -> return VoidVal
     Just val -> return val
-  --wrong implementation
 
---what if overshadows a variable
 cleanMem :: Result ()
 cleanMem = do
   env <- ask

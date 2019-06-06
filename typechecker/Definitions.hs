@@ -36,14 +36,20 @@ data Context
 
 type Loc = Integer
 
+type MaxBlockId = Integer
+
+type CurBlockId = Integer
+
+type BlockId = Integer
+
 type ConstIdent = Set.Set Ident
 
 type OverShadowableIdent = Set.Set Ident
 
-type Env = (Map.Map Ident Loc, ConstIdent, OverShadowableIdent, Context)
+type Env = (Map.Map Ident Loc, ConstIdent, CurBlockId, Context)
 
 type Mem = Map.Map Loc ValType
 
-type Store = (Mem, Loc)
+type Store = (Mem, Loc, MaxBlockId,Set.Set (Ident,BlockId))
 
 type Result = ReaderT Env (StateT Store (ExceptT String IO))

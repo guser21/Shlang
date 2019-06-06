@@ -38,7 +38,6 @@ instance Show Value where
 
 type Loc = Integer
 
--- Ident-> loc, break,continue
 type Env = Map.Map Ident Loc
 
 type Mem = Map.Map Loc Value

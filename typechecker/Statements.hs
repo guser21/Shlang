@@ -21,7 +21,8 @@ import           Utilities
 
 getBlockType :: Block -> ValType -> Result ValType
 getBlockType (Block stmts) expectedType = do
-  stmtTypes <- local markOvershadowable (getStmtType stmts expectedType)
+  newBlockId <- getNewBlockId
+  stmtTypes <- local (makeNewBlock newBlockId) (getStmtType stmts expectedType)
   return $
     foldl
       (\acc curType ->
@@ -30,9 +31,6 @@ getBlockType (Block stmts) expectedType = do
            else acc)
       NoRetType
       stmtTypes
-
-markOvershadowable (nameLocks, consts, _, context) =
-  (nameLocks, consts, Set.fromList $ Map.keys nameLocks, context)
 
 checkDeclTypes type_ =
   foldl
@@ -67,7 +65,7 @@ getStmtType [] expectedType = return [NoRetType]
 getStmtType (Empty:tl) expectedType =
   getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
 getStmtType (BStmt block:tl) expectedType = do
-  btype <- local markOvershadowable (getBlockType block expectedType)
+  btype <- getBlockType block expectedType
   getStmtType tl expectedType >>= (\res -> return $ btype : res)
   ---
 getStmtType (Decl type_ items:tl) expectedType = do
@@ -169,10 +167,12 @@ getStmtType (ConstFor type_ ident exprFrom exprTo stmt:tl) expectedType = do
     (throwError "for bounds must be of type int")
   l <- newloc
   modifyMem (Map.insert l (SimpleType Int))
+  checkIdent ident
+  rememberIdent ident
   stmtType <-
     local
-      (\(env, consts, shadowVar, context) ->
-         (Map.insert ident l env, Set.insert ident consts, shadowVar, context))
+      (\(env, consts, curBlockId, context) ->
+         (Map.insert ident l env, Set.insert ident consts, curBlockId, context))
       (getBlockType (Block [stmt]) expectedType)
   when
     (stmtType /= expectedType && stmtType /= NoRetType)

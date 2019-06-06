@@ -60,7 +60,7 @@ setFunctionsEnvAsGlobal = do
          (FunVal fun env) -> modifyMem (Map.insert k (FunVal fun globalEnv))
          _                -> modifyMem id)
     (Map.toList mem)
-  
+
 runProgramIO :: Program -> IO ()
 runProgramIO prog = do
   ans <-

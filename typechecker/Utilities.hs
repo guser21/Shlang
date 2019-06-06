@@ -17,18 +17,32 @@ import           Definitions
 import           System.Exit            (exitFailure, exitSuccess)
 import           System.IO
 
+makeNewBlock newBlockId (env, constIdent, curBlockId, context) =
+  (env, constIdent, newBlockId, context)
+
+getNewBlockId :: Result BlockId
+getNewBlockId = do
+  (st, l, curBlockId, identR) <- get
+  put (st, l, curBlockId + 1, identR)
+  return curBlockId
+
+getCurBlockId :: Result BlockId
+getCurBlockId = do
+  (st, l, curBlockId, _) <- get
+  return curBlockId
+
 newloc :: Result Loc
 newloc = do
-  (st, l) <- get
-  put (st, l + 1)
+  (st, l, bi, identR) <- get
+  put (st, l + 1, bi, identR)
   return l
 
 modifyMem :: (Mem -> Mem) -> Result ()
-modifyMem f = modify (\(st, l) -> (f st, l))
+modifyMem f = modify (\(st, l, mb, identR) -> (f st, l, mb, identR))
 
 getTypeByLoc :: Loc -> Result ValType
 getTypeByLoc loc = do
-  (st, l) <- get
+  (st, l, _, _) <- get
   case Map.lookup loc st of
     Just val -> return val
     Nothing  -> throwError "cannot find location for name"
@@ -36,7 +50,7 @@ getTypeByLoc loc = do
 getTypeByIdent :: Ident -> Result ValType
 getTypeByIdent var = do
   (env, _, _, _) <- ask
-  (st, l) <- get
+  (st, l, _, _) <- get
   let varLoc = Map.lookup var env
   case varLoc of
     Just loc -> getTypeByLoc loc
@@ -56,22 +70,21 @@ getIdentFromItem (Init ident expr) = ident
 
 declValue :: Ident -> Result ValType -> Result (Result a -> Result a)
 declValue nameIdent resVal = do
-  (env, constName, shadowable, context) <- ask
-  when
-    (Set.notMember nameIdent shadowable && Map.member nameIdent env)
-    (throwError $ "name " ++ show nameIdent ++ " is already in use")
+  (env, constName, curBlockId, context) <- ask
+  checkIdent nameIdent
+  rememberIdent nameIdent
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
   return
     (local
-       (\(env, constNames, shadowVar, context) ->
-          (Map.insert nameIdent l env, constNames, shadowVar, context)))
+       (\(env, constNames, curBlockId, context) ->
+          (Map.insert nameIdent l env, constNames, curBlockId, context)))
 
 declValueTypeLists ::
      [(Type, [Ident])] -> Set.Set Ident -> Result (Result a -> Result a)
 declValueTypeLists namesAndTypes newConstNames = do
-  (env, constName, shadowable, context) <- ask
+  (env, constName, curBlockId, context) <- ask
   let nameTypeFlat =
         concatMap (\(t, idents) -> map (\e -> (t, e)) idents) namesAndTypes
   let consts =
@@ -80,9 +93,8 @@ declValueTypeLists namesAndTypes newConstNames = do
     foldl
       (\acc (type_, ident) -> do
          curEnv <- acc
-         when
-           (Set.notMember ident shadowable && Map.member ident curEnv)
-           (throwError $ "name " ++ show ident ++ " is already in use")
+         checkIdent ident
+         rememberIdent ident
          l <- newloc
          val <- typeDefault type_
          modifyMem (Map.insert l val)
@@ -90,4 +102,19 @@ declValueTypeLists namesAndTypes newConstNames = do
       (return env)
       nameTypeFlat
   return $
-    local (const (nenv, consts `Set.union` newConstNames, shadowable, context))
+    local (const (nenv, consts `Set.union` newConstNames, curBlockId, context))
+
+rememberIdent :: Ident -> Result()
+rememberIdent ident = do
+  (st, l, maxBlockId, identR) <- get
+  (_, _, curBlockId, _) <- ask
+  let nIdentR = Set.insert (ident, curBlockId) identR
+  put (st, l, maxBlockId, nIdentR)
+  
+checkIdent :: Ident -> Result()
+checkIdent ident = do
+  (st, l, maxBlockId, identR) <- get
+  (_, _, curBlockId, _) <- ask
+  when
+    (Set.member (ident, curBlockId) identR)
+    (throwError $ "name " ++ show ident ++ " is already in use")
