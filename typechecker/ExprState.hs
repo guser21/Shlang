@@ -140,7 +140,9 @@ checkFunction (FnDef retType ident argDefs block) = do
   let argDecl =
         map (\(Arg argType argIdent) -> Decl argType [NoInit argIdent]) argDefs
   let Block stmts = block
-  btype <- getBlockType (Block $ argDecl ++ stmts) (SimpleType retType)
+  btype <-
+    getBlockType (Block $ argDecl ++ stmts) (SimpleType retType) `catchError`
+    (\e -> throwError $ "In function " ++ show ident ++" " ++ e)
   if btype == SimpleType retType || (btype == NoRetType && retType == Void)
     then return True
     else throwError $ "function " ++ show ident ++ " has a wrong return type"

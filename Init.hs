@@ -6,21 +6,13 @@ import           System.Environment (getArgs, getProgName)
 import           System.Exit        (exitFailure, exitSuccess)
 import           System.IO          (hGetContents, stdin)
 
-import           AbsDeclaration
+import           EvaluateProgram
 import           LexDeclaration
 import           ParDeclaration
-import           PrintDeclaration
-import           SkelDeclaration
-
-import           EvaluateProgram
 
 import           ErrM
 
 import           TypeChecker        (checkProgramTypesIO)
-
-type ParseFun a = [Token] -> Err a
-
-type Verbosity = Int
 
 usage = do
   putStrLn "provide an input file name as an argument"
