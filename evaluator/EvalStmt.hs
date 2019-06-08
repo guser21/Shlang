@@ -109,6 +109,9 @@ evalExpr x =
       if v1
         then return $ BoolVal True
         else evalExpr expr2
+    ELambda args type_ block -> do
+      env <- ask
+      return $ FunVal (FnDef type_ lambdaIdent args block) env
 
 evalArgs expr1 expr2 f = do
   v1 <- evalExpr expr1

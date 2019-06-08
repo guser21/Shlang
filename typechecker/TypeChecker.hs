@@ -60,26 +60,8 @@ checkTypes (Program topDefs)
   let typeAndIdent =
         map (\(type_, items) -> (type_, map getIdentFromItem items)) globalDefs
   declCont <- declValueTypeLists typeAndIdent constIdents
-  -- declCont (checkAllFunctions functions)
-  declCont(traverse_ checkFunction functions)
+  declCont (traverse_ checkFunction functions)
 
--- checkAllFunctions (h:tl) =
---   case h of
---     FnDef reType ident args block -> do
---       declCont <- declValue ident (FunType h)
---       declCont (checkAllFunctions tl)
---     _ -> throwError "unexpected type in fun match"
--- checkAllFunctions [] = do
---   (env, constName, _, _) <- ask
---   traverse_
---     (\(_, loc) ->
---        getTypeByLoc loc >>=
---        (\e ->
---           case e of
---             FunType f -> checkFunction f
---             _         -> return True))
---     (Map.toList env)
--- checkAllFunctions funs = traverse_ checkFunction
 checkProgramTypesIO :: Program -> IO Bool
 checkProgramTypesIO prog = do
   ans <-

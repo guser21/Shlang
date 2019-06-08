@@ -47,3 +47,5 @@ type StackCount = Integer
 type Store = (Mem, Loc, StackCount)
 
 type Result = ReaderT Env (StateT Store (ExceptT String IO))
+
+lambdaIdent= Ident "lambda"
