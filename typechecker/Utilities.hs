@@ -24,7 +24,7 @@ getNewBlockId :: Result BlockId
 getNewBlockId = do
   (st, l, curBlockId, identR) <- get
   put (st, l, curBlockId + 1, identR)
-  return curBlockId
+  return $ curBlockId+1
 
 getCurBlockId :: Result BlockId
 getCurBlockId = do
