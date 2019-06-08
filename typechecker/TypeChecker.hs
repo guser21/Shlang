@@ -14,8 +14,7 @@ import qualified Data.Map               as Map
 import           Data.Maybe
 import qualified Data.Set               as Set
 import           Definitions
-import           Expressions
-import           Statements
+import           ExprState
 import           System.Exit            (exitFailure, exitSuccess)
 import           System.IO
 import           Utilities
@@ -30,9 +29,10 @@ checkTypes (Program topDefs)
         foldl
           (\acc el ->
              case el of
-               GlobDecl type_ items    -> (type_, items) : acc
+               GlobDecl type_ items -> (type_, items) : acc
                GlobFinDecl type_ items -> (type_, items) : acc
-               _                       -> acc)
+               FnDef type_ ident args _ ->
+                 (FuncType (argsToTypes args) type_, [NoInit ident]) : acc)
           []
           topDefs
   let globalFinalIdents =
@@ -60,34 +60,33 @@ checkTypes (Program topDefs)
   let typeAndIdent =
         map (\(type_, items) -> (type_, map getIdentFromItem items)) globalDefs
   declCont <- declValueTypeLists typeAndIdent constIdents
-  declCont (checkAllFunctions functions)
+  -- declCont (checkAllFunctions functions)
+  traverse_ checkFunction functions
 
-checkAllFunctions (h:tl) =
-  case h of
-    FnDef reType ident args block -> do
-      declCont <- declValue ident (return $ FunType h)
-      declCont (checkAllFunctions tl)
-    _ -> throwError "unexpected type in fun match"
-checkAllFunctions [] = do
-  (env, constName, _, _) <- ask
-  traverse_
-    (\(_, loc) ->
-       getTypeByLoc loc >>=
-       (\e ->
-          case e of
-            FunType f -> checkFunction f
-            _         -> return True))
-    (Map.toList env)
-
+-- checkAllFunctions (h:tl) =
+--   case h of
+--     FnDef reType ident args block -> do
+--       declCont <- declValue ident (FunType h)
+--       declCont (checkAllFunctions tl)
+--     _ -> throwError "unexpected type in fun match"
+-- checkAllFunctions [] = do
+--   (env, constName, _, _) <- ask
+--   traverse_
+--     (\(_, loc) ->
+--        getTypeByLoc loc >>=
+--        (\e ->
+--           case e of
+--             FunType f -> checkFunction f
+--             _         -> return True))
+--     (Map.toList env)
+-- checkAllFunctions funs = traverse_ checkFunction
 checkProgramTypesIO :: Program -> IO Bool
 checkProgramTypesIO prog = do
   ans <-
     runExceptT
       (runStateT
-         (runReaderT
-            (checkTypes prog)
-            (Map.empty, Set.empty, 0, OtherContext))
-         (Map.empty, 0,0,Set.empty))
+         (runReaderT (checkTypes prog) (Map.empty, Set.empty, 0, OtherContext))
+         (Map.empty, 0, 0, Set.empty))
   case ans of
     (Left errMesg) -> putStrLn ("Type error: " ++ errMesg) >> return False
     _              -> return True --ended as supposed

@@ -59,22 +59,22 @@ getTypeByIdent var = do
 typeDefault :: Type -> Result ValType
 typeDefault type_ =
   case type_ of
-    Int  -> return $ SimpleType Int
-    Bool -> return $ SimpleType Bool
-    Str  -> return $ SimpleType Str
-    _    -> throwError "unrecognized type"
+    Int          -> return $ SimpleType Int
+    Bool         -> return $ SimpleType Bool
+    Str          -> return $ SimpleType Str
+    FuncType _ _ -> return $ SimpleType type_
+    _            -> throwError "unrecognized type"
 
 getIdentFromItem :: Item -> Ident
 getIdentFromItem (NoInit ident)    = ident
 getIdentFromItem (Init ident expr) = ident
 
-declValue :: Ident -> Result ValType -> Result (Result a -> Result a)
-declValue nameIdent resVal = do
+declValue :: Ident -> ValType -> Result (Result a -> Result a)
+declValue nameIdent val = do
   (env, constName, curBlockId, context) <- ask
   checkIdent nameIdent
   rememberIdent nameIdent
   l <- newloc
-  val <- resVal
   modifyMem (Map.insert l val)
   return
     (local
@@ -104,17 +104,29 @@ declValueTypeLists namesAndTypes newConstNames = do
   return $
     local (const (nenv, consts `Set.union` newConstNames, curBlockId, context))
 
-rememberIdent :: Ident -> Result()
+rememberIdent :: Ident -> Result ()
 rememberIdent ident = do
   (st, l, maxBlockId, identR) <- get
   (_, _, curBlockId, _) <- ask
   let nIdentR = Set.insert (ident, curBlockId) identR
   put (st, l, maxBlockId, nIdentR)
-  
-checkIdent :: Ident -> Result()
+
+checkIdent :: Ident -> Result ()
 checkIdent ident = do
   (st, l, maxBlockId, identR) <- get
   (_, _, curBlockId, _) <- ask
   when
     (Set.member (ident, curBlockId) identR)
     (throwError $ "name " ++ show ident ++ " is already in use")
+
+lambdaIdent = Ident "lambdaIdent"
+
+fastEvalBool :: Expr -> Maybe Bool
+fastEvalBool expr =
+  case expr of
+    ELitTrue  -> Just True
+    ELitFalse -> Just False
+    _         -> Nothing
+
+argsToTypes = map (\(Arg argType _) -> argType)
+argsToCompoundTypes = map (\(Arg argType _) -> SimpleType argType)

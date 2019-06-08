@@ -74,7 +74,11 @@ Bool.      Type ::= "boolean" ;
 
 Void.      Type ::= "void" ;
 
+FuncType.  Type ::= "fun" "("[Type] "->" Type ")" ;  
+
 internal   Fun. Type ::= Type "(" [Type] ")" ;
+
+coercions  Type 6 ;
 
 separator  Type "," ;
 
@@ -91,6 +95,8 @@ ELitFalse. Expr6 ::= "false" ;
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
 EString.   Expr6 ::= String ;
+
+ELambda.   Expr6 ::= "lambda" "(" [Arg] ")" ":" Type  Block ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 

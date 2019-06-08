@@ -33,17 +33,19 @@ The set of reserved words is the set of terminals appearing in the grammar. Thos
 
 The reserved words used in declaration are the following:
   | ``boolean`` | ``break`` | ``continue`` | ``else``
-  | ``false`` | ``final`` | ``for`` | ``if``
-  | ``int`` | ``print`` | ``return`` | ``string``
-  | ``to`` | ``true`` | ``void`` | ``while``
+  | ``false`` | ``final`` | ``for`` | ``fun``
+  | ``if`` | ``int`` | ``lambda`` | ``print``
+  | ``return`` | ``string`` | ``to`` | ``true``
+  | ``void`` | ``while`` |  | 
 
 The symbols used in declaration are the following:
   | ( | ) | ; | ,
   | { | } | = | ++
-  | -- | - | ! | &&
-  | || | + | * | /
-  | % | < | <= | >
-  | >= | == | != | 
+  | -- | -> | : | -
+  | ! | && | || | +
+  | * | / | % | <
+  | <= | > | >= | ==
+  | != |  |  | 
 
 ===Comments===
 Single-line comments begin with //.Multiple-line comments are  enclosed with /* and */.
@@ -93,6 +95,14 @@ All other symbols are terminals.
   |  |  **|**  | ``string`` 
   |  |  **|**  | ``boolean`` 
   |  |  **|**  | ``void`` 
+  |  |  **|**  | ``fun`` ``(`` //[Type]// ``->`` //Type// ``)`` 
+  |  |  **|**  | //Type1// 
+  | //Type1// | -> | //Type2// 
+  | //Type2// | -> | //Type3// 
+  | //Type3// | -> | //Type4// 
+  | //Type4// | -> | //Type5// 
+  | //Type5// | -> | //Type6// 
+  | //Type6// | -> | ``(`` //Type// ``)`` 
   | //[Type]// | -> | **eps**
   |  |  **|**  | //Type// 
   |  |  **|**  | //Type// ``,`` //[Type]// 
@@ -102,6 +112,7 @@ All other symbols are terminals.
   |  |  **|**  | ``false`` 
   |  |  **|**  | //Ident// ``(`` //[Expr]// ``)`` 
   |  |  **|**  | //String// 
+  |  |  **|**  | ``lambda`` ``(`` //[Arg]// ``)`` ``:`` //Type// //Block// 
   |  |  **|**  | ``(`` //Expr// ``)`` 
   | //Expr5// | -> | ``-`` //Expr6// 
   |  |  **|**  | ``!`` //Expr6// 

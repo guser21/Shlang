@@ -47,7 +47,8 @@ data Stmt
 data Item = NoInit Ident | Init Ident Expr
   deriving (Eq, Ord, Show, Read)
 
-data Type = Int | Str | Bool | Void | Fun Type [Type]
+data Type
+    = Int | Str | Bool | Void | FuncType [Type] Type | Fun Type [Type]
   deriving (Eq, Ord, Show, Read)
 
 data Expr
@@ -57,6 +58,7 @@ data Expr
     | ELitFalse
     | EApp Ident [Expr]
     | EString String
+    | ELambda [Arg] Type Block
     | Neg Expr
     | Not Expr
     | EMul Expr MulOp Expr

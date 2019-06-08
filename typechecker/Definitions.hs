@@ -19,13 +19,11 @@ import           System.IO
 data ValType
   = SimpleType { t :: Type }
   | NoRetType
-  | FunType { fun :: TopDef }
   deriving (Eq)
 
 instance Show ValType where
   show v =
     case v of
-      FunType _        -> "function"
       NoRetType        -> "no return type"
       SimpleType type_ -> show type_
 

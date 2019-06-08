@@ -158,6 +158,7 @@ instance Print Type where
     Str -> prPrec i 0 (concatD [doc (showString "string")])
     Bool -> prPrec i 0 (concatD [doc (showString "boolean")])
     Void -> prPrec i 0 (concatD [doc (showString "void")])
+    FuncType types type_ -> prPrec i 0 (concatD [doc (showString "fun"), doc (showString "("), prt 0 types, doc (showString "->"), prt 0 type_, doc (showString ")")])
     Fun type_ types -> prPrec i 0 (concatD [prt 0 type_, doc (showString "("), prt 0 types, doc (showString ")")])
   prtList _ [] = concatD []
   prtList _ [x] = concatD [prt 0 x]
@@ -174,6 +175,7 @@ instance Print Expr where
     ELitFalse -> prPrec i 6 (concatD [doc (showString "false")])
     EApp id exprs -> prPrec i 6 (concatD [prt 0 id, doc (showString "("), prt 0 exprs, doc (showString ")")])
     EString str -> prPrec i 6 (concatD [prt 0 str])
+    ELambda args type_ block -> prPrec i 6 (concatD [doc (showString "lambda"), doc (showString "("), prt 0 args, doc (showString ")"), doc (showString ":"), prt 0 type_, prt 0 block])
     Neg expr -> prPrec i 5 (concatD [doc (showString "-"), prt 6 expr])
     Not expr -> prPrec i 5 (concatD [doc (showString "!"), prt 6 expr])
     EMul expr1 mulop expr2 -> prPrec i 4 (concatD [prt 4 expr1, prt 0 mulop, prt 5 expr2])

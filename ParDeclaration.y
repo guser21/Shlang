@@ -25,33 +25,37 @@ import ErrM
   ',' { PT _ (TS _ 10) }
   '-' { PT _ (TS _ 11) }
   '--' { PT _ (TS _ 12) }
-  '/' { PT _ (TS _ 13) }
-  ';' { PT _ (TS _ 14) }
-  '<' { PT _ (TS _ 15) }
-  '<=' { PT _ (TS _ 16) }
-  '=' { PT _ (TS _ 17) }
-  '==' { PT _ (TS _ 18) }
-  '>' { PT _ (TS _ 19) }
-  '>=' { PT _ (TS _ 20) }
-  'boolean' { PT _ (TS _ 21) }
-  'break' { PT _ (TS _ 22) }
-  'continue' { PT _ (TS _ 23) }
-  'else' { PT _ (TS _ 24) }
-  'false' { PT _ (TS _ 25) }
-  'final' { PT _ (TS _ 26) }
-  'for' { PT _ (TS _ 27) }
-  'if' { PT _ (TS _ 28) }
-  'int' { PT _ (TS _ 29) }
-  'print' { PT _ (TS _ 30) }
-  'return' { PT _ (TS _ 31) }
-  'string' { PT _ (TS _ 32) }
-  'to' { PT _ (TS _ 33) }
-  'true' { PT _ (TS _ 34) }
-  'void' { PT _ (TS _ 35) }
-  'while' { PT _ (TS _ 36) }
-  '{' { PT _ (TS _ 37) }
-  '||' { PT _ (TS _ 38) }
-  '}' { PT _ (TS _ 39) }
+  '->' { PT _ (TS _ 13) }
+  '/' { PT _ (TS _ 14) }
+  ':' { PT _ (TS _ 15) }
+  ';' { PT _ (TS _ 16) }
+  '<' { PT _ (TS _ 17) }
+  '<=' { PT _ (TS _ 18) }
+  '=' { PT _ (TS _ 19) }
+  '==' { PT _ (TS _ 20) }
+  '>' { PT _ (TS _ 21) }
+  '>=' { PT _ (TS _ 22) }
+  'boolean' { PT _ (TS _ 23) }
+  'break' { PT _ (TS _ 24) }
+  'continue' { PT _ (TS _ 25) }
+  'else' { PT _ (TS _ 26) }
+  'false' { PT _ (TS _ 27) }
+  'final' { PT _ (TS _ 28) }
+  'for' { PT _ (TS _ 29) }
+  'fun' { PT _ (TS _ 30) }
+  'if' { PT _ (TS _ 31) }
+  'int' { PT _ (TS _ 32) }
+  'lambda' { PT _ (TS _ 33) }
+  'print' { PT _ (TS _ 34) }
+  'return' { PT _ (TS _ 35) }
+  'string' { PT _ (TS _ 36) }
+  'to' { PT _ (TS _ 37) }
+  'true' { PT _ (TS _ 38) }
+  'void' { PT _ (TS _ 39) }
+  'while' { PT _ (TS _ 40) }
+  '{' { PT _ (TS _ 41) }
+  '||' { PT _ (TS _ 42) }
+  '}' { PT _ (TS _ 43) }
 
 L_ident  { PT _ (TV $$) }
 L_integ  { PT _ (TI $$) }
@@ -111,6 +115,20 @@ Type : 'int' { AbsDeclaration.Int }
      | 'string' { AbsDeclaration.Str }
      | 'boolean' { AbsDeclaration.Bool }
      | 'void' { AbsDeclaration.Void }
+     | 'fun' '(' ListType '->' Type ')' { AbsDeclaration.FuncType $3 $5 }
+     | Type1 { $1 }
+Type1 :: { Type }
+Type1 : Type2 { $1 }
+Type2 :: { Type }
+Type2 : Type3 { $1 }
+Type3 :: { Type }
+Type3 : Type4 { $1 }
+Type4 :: { Type }
+Type4 : Type5 { $1 }
+Type5 :: { Type }
+Type5 : Type6 { $1 }
+Type6 :: { Type }
+Type6 : '(' Type ')' { $2 }
 ListType :: { [Type] }
 ListType : {- empty -} { [] }
          | Type { (:[]) $1 }
@@ -122,6 +140,7 @@ Expr6 : Ident { AbsDeclaration.EVar $1 }
       | 'false' { AbsDeclaration.ELitFalse }
       | Ident '(' ListExpr ')' { AbsDeclaration.EApp $1 $3 }
       | String { AbsDeclaration.EString $1 }
+      | 'lambda' '(' ListArg ')' ':' Type Block { AbsDeclaration.ELambda $3 $6 $7 }
       | '(' Expr ')' { $2 }
 Expr5 :: { Expr }
 Expr5 : '-' Expr6 { AbsDeclaration.Neg $2 }

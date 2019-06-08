@@ -1,4 +1,4 @@
-module Statements where
+module ExprState where
 
 import           AbsDeclaration
 import           EnvDefinitions
@@ -14,11 +14,93 @@ import qualified Data.Map               as Map
 import           Data.Maybe
 import qualified Data.Set               as Set
 import           Definitions
-import           Expressions
 import           System.Exit            (exitFailure, exitSuccess)
 import           System.IO
 import           Utilities
 
+getExprType :: Expr -> Result ValType
+getExprType (EVar ident) = getTypeByIdent ident
+getExprType (ELitInt integer) = return $ SimpleType Int
+getExprType ELitTrue = return $ SimpleType Bool
+getExprType ELitFalse = return $ SimpleType Bool
+getExprType (EApp ident exprs) = do
+  funVal <- getTypeByIdent ident
+  case funVal of
+    SimpleType (FuncType _ _) -> return ()
+    _                         -> throwError $ "cannot call " ++ show ident
+  let (SimpleType (FuncType argTypes type_)) = funVal
+  let exprAndTypes = zip exprs argTypes
+  if length argTypes /= length exprs
+    then throwError $
+         "wrong number of arguments supplied in funciton " ++ show ident
+    else traverse_
+           (\(expr, type_) --todo overshadowing the up type_
+             -> do
+              exprType <- getExprType expr
+              when
+                (exprType /= SimpleType type_)
+                (throwError $ "wrong argument type in function " ++ show ident))
+           exprAndTypes
+  return $ SimpleType type_
+getExprType (EString _) = return $ SimpleType Str
+getExprType (Neg expr) = do
+  eType <- getExprType expr
+  when
+    (eType /= SimpleType Int)
+    (throwError $ "cannot negate an expression of type " ++ show eType)
+  return $ SimpleType Int
+getExprType (Not expr) = do
+  eType <- getExprType expr
+  when
+    (eType /= SimpleType Bool)
+    (throwError $ "cannot invert an expression of type " ++ show eType)
+  return $ SimpleType Bool
+getExprType (EMul expr1 _ expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  when
+    (eType1 /= SimpleType Int || eType2 /= SimpleType Int)
+    (throwError $
+     "invalid operation with type " ++ show eType1 ++ " " ++ show eType2)
+  return $ SimpleType Int
+getExprType (EAdd expr1 addop expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  case addop of
+    Plus ->
+      unless
+        ((eType1 == SimpleType Int && eType2 == SimpleType Int) ||
+         (eType1 == SimpleType Str && eType2 == SimpleType Str))
+        (throwError $
+         "cannot add expressions of type " ++ show eType1 ++ " " ++ show eType2)
+    Minus ->
+      unless
+        (eType1 == SimpleType Int && eType2 == SimpleType Int)
+        (throwError $
+         "cannot subtract expressions of type " ++
+         show eType1 ++ " " ++ show eType2)
+  return eType1
+getExprType (ERel expr1 _ expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  if eType1 /= eType2
+    then throwError $
+         "cannot compare type " ++ show eType1 ++ " with" ++ show eType2
+    else return $ SimpleType Bool
+getExprType (EAnd expr1 expr2) = do
+  eType1 <- getExprType expr1
+  eType2 <- getExprType expr2
+  unless
+    (eType1 == eType2 || eType1 /= SimpleType Bool)
+    (throwError $
+     "invalidOperation with type " ++ show eType1 ++ " with" ++ show eType2)
+  return $ SimpleType Bool
+getExprType (EOr expr1 expr2) = getExprType (EAnd expr1 expr2)
+getExprType (ELambda args type_ block) = do
+  void (checkFunction (FnDef type_ lambdaIdent args block))
+  return $ SimpleType (FuncType (argsToTypes args) type_)
+
+----------------------Statements-----------------------------------------
 getBlockType :: Block -> ValType -> Result ValType
 getBlockType (Block stmts) expectedType = do
   newBlockId <- getNewBlockId
@@ -38,10 +120,13 @@ checkDeclTypes type_ =
        case it of
          NoInit ident -> acc
          Init ident expr -> do
-           (SimpleType exprType) <- getExprType expr
-           acc >>=
-             (\accVal ->
-                return $ not (exprType == Void || exprType /= type_) && accVal))
+           expressionType <- getExprType expr
+           let isCurDeclCorrect =
+                 case expressionType of
+                   SimpleType exprType ->
+                     not (exprType == Void || exprType /= type_)
+                   _ -> False
+           acc >>= (\accVal -> return $ isCurDeclCorrect && accVal))
     (return True)
 
 checkIfConst :: Ident -> Result ()
@@ -71,9 +156,8 @@ getStmtType (BStmt block:tl) expectedType = do
 getStmtType (Decl type_ items:tl) expectedType = do
   typeCheck <- checkDeclTypes type_ items
   unless typeCheck (throwError $ "incorrect declaration of type " ++ show type_)
-  declCont <- declValueTypeLists [(type_, map getIdentFromItem items)] Set.empty
-  declCont (getStmtType tl expectedType)
-  ---
+  declValueTypeLists [(type_, map getIdentFromItem items)] Set.empty >>=
+    (\c -> c (getStmtType tl expectedType))
 getStmtType (DeclFinal type_ items:tl) expectedType = do
   typeCheck <- checkDeclTypes type_ items
   (env, consts, shadowVar, context) <- ask
@@ -85,11 +169,11 @@ getStmtType (Ass ident expr:tl) expectedType = do
   checkIfConst ident
   identType <- getTypeByIdent ident
   exprType <- getExprType expr
-  if identType /= exprType
-    then throwError $
+  if identType == exprType
+    then getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+    else throwError $
          "cannot assgin " ++
          show exprType ++ " value to variable " ++ show ident
-    else getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
 getStmtType (Incr ident:tl) expectedType = do
   checkIfConst ident
   identType <- getTypeByIdent ident
@@ -199,6 +283,6 @@ getStmtType (CondElse expr stmt1 stmt2:tl) expectedType = do
             getStmtType tl expectedType >>= (\res -> return $ t1 : res)
         _ -> throwError "incompatible return type in if else condition"
 getStmtType (FnInDef type_ ident args block:tl) expectedType = do
-  declCont <- declValue ident (return $ FunType (FnDef type_ ident args block))
+  declCont <- declValue ident (SimpleType (FuncType (argsToTypes args) type_))
   declCont (checkFunction (FnDef type_ ident args block) >> return [])
   declCont (getStmtType tl expectedType)
