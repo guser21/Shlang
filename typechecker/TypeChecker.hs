@@ -61,7 +61,7 @@ checkTypes (Program topDefs)
         map (\(type_, items) -> (type_, map getIdentFromItem items)) globalDefs
   declCont <- declValueTypeLists typeAndIdent constIdents
   -- declCont (checkAllFunctions functions)
-  traverse_ checkFunction functions
+  declCont(traverse_ checkFunction functions)
 
 -- checkAllFunctions (h:tl) =
 --   case h of

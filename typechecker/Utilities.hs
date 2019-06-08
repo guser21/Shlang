@@ -129,4 +129,5 @@ fastEvalBool expr =
     _         -> Nothing
 
 argsToTypes = map (\(Arg argType _) -> argType)
+
 argsToCompoundTypes = map (\(Arg argType _) -> SimpleType argType)
