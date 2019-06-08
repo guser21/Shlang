@@ -119,7 +119,7 @@ checkIdent ident = do
     (Set.member (ident, curBlockId) identR)
     (throwError $ "name " ++ show ident ++ " is already in use")
 
-lambdaIdent = Ident "lambdaIdent"
+lambdaIdent = Ident "lambda"
 
 fastEvalBool :: Expr -> Maybe Bool
 fastEvalBool expr =

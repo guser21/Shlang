@@ -115,19 +115,16 @@ getBlockType (Block stmts) expectedType = do
       stmtTypes
 
 checkDeclTypes type_ =
-  foldl
-    (\acc it ->
+  traverse_
+    (\it ->
        case it of
-         NoInit ident -> acc
+         NoInit ident -> do
+           return ()
          Init ident expr -> do
            expressionType <- getExprType expr
-           let isCurDeclCorrect =
-                 case expressionType of
-                   SimpleType exprType ->
-                     not (exprType == Void || exprType /= type_)
-                   _ -> False
-           acc >>= (\accVal -> return $ isCurDeclCorrect && accVal))
-    (return True)
+           when
+             (expressionType /= SimpleType type_)
+             (throwError $ "incorrect declaration of type" ++ show type_))
 
 checkIfConst :: Ident -> Result ()
 checkIfConst ident = do
@@ -142,7 +139,7 @@ checkFunction (FnDef retType ident argDefs block) = do
   let Block stmts = block
   btype <-
     getBlockType (Block $ argDecl ++ stmts) (SimpleType retType) `catchError`
-    (\e -> throwError $ "In function " ++ show ident ++" " ++ e)
+    (\e -> throwError $ "In function " ++ show ident ++ ": " ++ e)
   if btype == SimpleType retType || (btype == NoRetType && retType == Void)
     then return True
     else throwError $ "function " ++ show ident ++ " has a wrong return type"
@@ -156,12 +153,11 @@ getStmtType (BStmt block:tl) expectedType = do
   getStmtType tl expectedType >>= (\res -> return $ btype : res)
   ---
 getStmtType (Decl type_ items:tl) expectedType = do
-  typeCheck <- checkDeclTypes type_ items
-  unless typeCheck (throwError $ "incorrect declaration of type " ++ show type_)
+  checkDeclTypes type_ items
   declValueTypeLists [(type_, map getIdentFromItem items)] Set.empty >>=
     (\c -> c (getStmtType tl expectedType))
 getStmtType (DeclFinal type_ items:tl) expectedType = do
-  typeCheck <- checkDeclTypes type_ items
+  checkDeclTypes type_ items
   (env, consts, shadowVar, context) <- ask
   let idents = map getIdentFromItem items
   let newconsts = foldl (flip Set.insert) consts idents

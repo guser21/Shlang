@@ -52,14 +52,15 @@ checkTypes (Program topDefs)
           topDefs
   (env, consts, _, _) <- ask
   let constIdents = foldl (flip Set.insert) consts globalFinalIdents
-  traverse_
-    (\(type_, items) ->
-       checkDeclTypes type_ items >>=
-       flip unless (throwError $ "incorrect declaration of type " ++ show type_))
-    globalDefs
   let typeAndIdent =
         map (\(type_, items) -> (type_, map getIdentFromItem items)) globalDefs
   declCont <- declValueTypeLists typeAndIdent constIdents
+  declCont
+    (traverse_
+       (\(type_, items) ->
+          checkDeclTypes type_ items `catchError`
+          (\e -> throwError $ "In global scope : " ++ e))
+       globalDefs)
   declCont (traverse_ checkFunction functions)
 
 checkProgramTypesIO :: Program -> IO Bool
