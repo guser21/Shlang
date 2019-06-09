@@ -1,5 +1,3 @@
-- type inference 
-- show instance for idents
 ? callcc
 
 + detect stack overflow
@@ -7,9 +5,4 @@
 + short circuit evaluation
 + final keyword
 + break continue
-
-todo
-int a=12;
-void foo(int a,int a){
-    print(a);
-}
++ lambda expressions 

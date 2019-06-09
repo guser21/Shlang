@@ -61,8 +61,9 @@ checkTypes (Program topDefs) =
              globalDefs
      declCont <-
        declValueTypeLists typeAndIdent (Set.fromList globalFinalIdents)
-     declCont (traverse_ (uncurry checkDeclTypes) globalDefs)
-     declCont (traverse_ checkFunction functions)
+     declCont
+       (traverse_ (uncurry checkDeclTypes) globalDefs >>
+        traverse_ checkFunction functions)
      `catchError` (\e -> throwError $ "In global scope : " ++ e)
 
 checkProgramTypesIO :: Program -> IO Bool

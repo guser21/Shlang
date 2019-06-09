@@ -283,5 +283,5 @@ getStmtType (CondElse expr stmt1 stmt2:tl) expectedType = do
         _ -> throwError "incompatible return type in if else condition"
 getStmtType (FnInDef type_ ident args block:tl) expectedType = do
   declCont <- declValue ident (SimpleType (FuncType (argsToTypes args) type_))
-  declCont (checkFunction (FnDef type_ ident args block) >> return [])
-  declCont (getStmtType tl expectedType)
+  declCont
+    (checkFunction (FnDef type_ ident args block) >> getStmtType tl expectedType)
