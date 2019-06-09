@@ -72,7 +72,11 @@ declValue :: Ident -> Result Value -> Result (Result a -> Result a)
 declValue nameIdent resVal = do
   l <- newloc
   val <- resVal
-  modifyMem (Map.insert l val)
+  let nval =
+        case val of
+          FunVal fun env -> FunVal fun (Map.insert nameIdent l env)
+          _              -> val
+  modifyMem (Map.insert l nval)
   return (local (Map.insert nameIdent l))
 
 declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)

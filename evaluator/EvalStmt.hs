@@ -32,15 +32,12 @@ registerFunCall funIdent = do
 
 evalFunction :: TopDef -> Env -> [Result Value] -> Result Value
 evalFunction (FnDef funType funName argDefs block) env argVals = do
-  curEnv <- ask
   let argIdent = map (\(Arg argType argIdent) -> argIdent) argDefs
   let Block stmts = block
-  let Ident rawName = funName
-  let curFuncLoc = fromJust $ Map.lookup funName curEnv
   funArgDeclCont <- declValueList argIdent argVals
   resVal <-
     local
-      (const (Map.insert funName curFuncLoc env))
+      (const env)
       (funArgDeclCont (evalBlock stmts))
   case resVal of
     Nothing  -> return VoidVal
