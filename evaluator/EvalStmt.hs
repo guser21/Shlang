@@ -21,13 +21,6 @@ import           System.IO
 
 callStackLimit = 20000
 
-declValueInit :: Type -> [Item] -> [Result Value]
-declValueInit type_ =
-  map
-    (\case
-       (NoInit ident) -> typeDefault type_
-       (Init ident expr) -> evalExpr expr)
-
 registerFunCall :: Ident -> Result ()
 registerFunCall funIdent = do
   (st, l, scount) <- get
@@ -178,6 +171,25 @@ runWhile expr stmt = do
               Just _        -> return res)
     else return Nothing
 
+declValueInit :: Type -> [Item] -> [Result Value]
+declValueInit type_ =
+  map
+    (\case
+       (NoInit ident) -> typeDefault type_
+       (Init ident expr) -> evalExpr expr)
+
+-- no initialized functional value
+setFuncName ident (FunVal (FnDef retType _ args block) env) =
+  return $ FunVal (FnDef retType ident args block) env
+
+declareFuncItems =
+  map
+    (\(Init ident expr) ->
+       case expr of
+         ELambda args type_ block ->
+           evalExpr (ELambda args type_ block) >>= setFuncName ident
+         _ -> evalExpr expr)
+
 evalBlock :: [Stmt] -> Result (Maybe Value)
 evalBlock (h:tl) =
   case h of
@@ -188,17 +200,10 @@ evalBlock (h:tl) =
         Nothing       -> evalBlock tl
         Just finalVal -> return (Just finalVal)
     Decl type_ items -> do
-      let wrongLambdaNamesVals = declValueInit type_ items
       let initValues =
             case type_ of
-              (FuncType _ _) ->
-                map
-                  (\(val, ident) ->
-                     val >>=
-                     (\(FunVal (FnDef retType _ args block) env) ->
-                        return $ FunVal (FnDef retType ident args block) env))
-                  (zip wrongLambdaNamesVals (declIdents items))
-              _ -> wrongLambdaNamesVals
+              FuncType _ _ -> declareFuncItems items
+              _            -> declValueInit type_ items
       declCont <- declValueList (declIdents items) initValues
       declCont (evalBlock tl)
     FnInDef reType ident args block -> do
