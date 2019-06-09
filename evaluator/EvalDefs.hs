@@ -19,7 +19,8 @@ data Value
   = BoolVal { bool :: Bool }
   | NumVal { num :: Integer }
   | StrVal { str :: String }
-  | FunVal { fun :: TopDef,env :: Env }
+  | FunVal { fun :: TopDef
+           , env :: Env }
   | VoidVal
   | BreakVal
   | ContVal
@@ -28,13 +29,13 @@ data Value
 instance Show Value where
   show v =
     case v of
-      BoolVal b -> show b
-      NumVal n  -> show n
-      StrVal s  -> s
+      BoolVal b  -> show b
+      NumVal n   -> show n
+      StrVal s   -> s
       FunVal f _ -> show f
-      BreakVal  -> "breakVal"
-      ContVal   -> "contVal "
-      VoidVal   -> "voidVal"
+      BreakVal   -> "breakVal"
+      ContVal    -> "contVal "
+      VoidVal    -> "voidVal"
 
 type Loc = Integer
 
@@ -48,4 +49,5 @@ type Store = (Mem, Loc, StackCount)
 
 type Result = ReaderT Env (StateT Store (ExceptT String IO))
 
-lambdaIdent= Ident "lambda"
+lambdaIdent :: Ident
+lambdaIdent = Ident "lambda"

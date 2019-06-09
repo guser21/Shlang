@@ -48,6 +48,9 @@ type Env = (Map.Map Ident Loc, ConstIdent, CurBlockId, Context)
 
 type Mem = Map.Map Loc ValType
 
-type Store = (Mem, Loc, MaxBlockId,Set.Set (Ident,BlockId))
+type Store = (Mem, Loc, MaxBlockId, Set.Set (Ident, BlockId))
 
 type Result = ReaderT Env (StateT Store (ExceptT String IO))
+
+lambdaIdent :: Ident
+lambdaIdent = Ident "lambda"
