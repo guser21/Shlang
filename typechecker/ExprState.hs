@@ -121,7 +121,8 @@ checkDeclTypes type_ =
     (\case
        NoInit ident -> return ()
        Init ident expr -> do
-         expressionType <- getExprType expr
+         newBlockId <- getNewBlockId
+         expressionType <- local (makeNewBlock newBlockId) ( declValue ident (SimpleType type_) >>= \d -> d (getExprType expr))
          when
            (expressionType /= SimpleType type_)
            (throwError $ "incorrect declaration of type " ++ show type_))
@@ -151,7 +152,6 @@ getStmtType (Empty:tl) expectedType =
 getStmtType (BStmt block:tl) expectedType = do
   btype <- getBlockType block expectedType
   getStmtType tl expectedType >>= (\res -> return $ btype : res)
-  ---
 getStmtType (Decl type_ items:tl) expectedType = do
   checkDeclTypes type_ items
   declValueTypeLists [(type_, map getIdentFromItem items)] Set.empty >>=

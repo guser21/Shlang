@@ -136,7 +136,6 @@ lessThan (BoolVal b1) (BoolVal b2) = b1 < b2
 lessThan (StrVal s1) (StrVal s2)   = s1 < s2
 lessThan (NumVal n1) (NumVal n2)   = n1 < n2
 
-
 equal (BoolVal b1) (BoolVal b2) = b1 == b2
 equal (StrVal s1) (StrVal s2)   = s1 == s2
 equal (NumVal n1) (NumVal n2)   = n1 == n2
@@ -189,7 +188,18 @@ evalBlock (h:tl) =
         Nothing       -> evalBlock tl
         Just finalVal -> return (Just finalVal)
     Decl type_ items -> do
-      declCont <- declValueList (declIdents items) (declValueInit type_ items)
+      let wrongLambdaNamesVals = declValueInit type_ items
+      let initValues =
+            case type_ of
+              (FuncType _ _) ->
+                map
+                  (\(val, ident) ->
+                     val >>=
+                     (\(FunVal (FnDef retType _ args block) env) ->
+                        return $ FunVal (FnDef retType ident args block) env))
+                  (zip wrongLambdaNamesVals (declIdents items))
+              _ -> wrongLambdaNamesVals
+      declCont <- declValueList (declIdents items) initValues
       declCont (evalBlock tl)
     FnInDef reType ident args block -> do
       curEnv <- ask
