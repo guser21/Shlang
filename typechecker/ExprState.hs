@@ -87,7 +87,7 @@ getExprType (ERel expr1 _ expr2) = do
   eType2 <- getExprType expr2
   if eType1 /= eType2
     then throwError $
-         "cannot compare type " ++ show eType1 ++ " with" ++ show eType2
+         "cannot compare type " ++ show eType1 ++ " with " ++ show eType2
     else return $ SimpleType Bool
 getExprType (EAnd expr1 expr2) = do
   eType1 <- getExprType expr1
@@ -95,7 +95,7 @@ getExprType (EAnd expr1 expr2) = do
   unless
     (eType1 == eType2 || eType1 /= SimpleType Bool)
     (throwError $
-     "invalidOperation with type " ++ show eType1 ++ " with" ++ show eType2)
+     "invalidOperation with type " ++ show eType1 ++ " with " ++ show eType2)
   return $ SimpleType Bool
 getExprType (EOr expr1 expr2) = getExprType (EAnd expr1 expr2)
 getExprType (ELambda args type_ block) = do
@@ -124,7 +124,7 @@ checkDeclTypes type_ =
          expressionType <- getExprType expr
          when
            (expressionType /= SimpleType type_)
-           (throwError $ "incorrect declaration of type" ++ show type_))
+           (throwError $ "incorrect declaration of type " ++ show type_))
 
 checkIfConst :: Ident -> Result ()
 checkIfConst ident = do

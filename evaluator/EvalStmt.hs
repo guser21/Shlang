@@ -33,7 +33,7 @@ registerFunCall funIdent = do
   (st, l, scount) <- get
   when
     (scount > callStackLimit)
-    (throwError $ "Stack Overflow" ++ show funIdent)
+    (throwError $ "Stack Overflow " ++ show funIdent)
   modify (\(st, l, scount) -> (st, l, scount + 1))
   return ()
 
@@ -128,10 +128,14 @@ addVal (StrVal v1) (StrVal v2) addop =
   case addop of
     Plus  -> return $ StrVal (v1 ++ v2)
     Minus -> throwError "subtraction not supported on strings"
+addVal t1 t2 addop =
+  throwError $
+  "cannot add/subtract elements of type " ++ show t1 ++ " and " ++ show t2
 
 lessThan (BoolVal b1) (BoolVal b2) = b1 < b2
 lessThan (StrVal s1) (StrVal s2)   = s1 < s2
 lessThan (NumVal n1) (NumVal n2)   = n1 < n2
+
 
 equal (BoolVal b1) (BoolVal b2) = b1 == b2
 equal (StrVal s1) (StrVal s2)   = s1 == s2
