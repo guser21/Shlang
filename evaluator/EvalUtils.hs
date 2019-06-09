@@ -59,7 +59,7 @@ typeDefault type_ =
     Int  -> return $ NumVal 0
     Bool -> return $ BoolVal True
     Str  -> return $ StrVal ""
-    _    -> throwError "unrecognized type"
+    _    -> throwError "functional or void types cannot be unintialized"
 
 declVars :: Type -> [Ident] -> Result (Result a -> Result a)
 declVars type_ nameIdents =
