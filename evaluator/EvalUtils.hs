@@ -3,7 +3,6 @@
 module EvalUtils where
 
 import           AbsDeclaration
-import           EnvDefinitions
 
 import           Control.Monad.Except
 import           Control.Monad.Identity

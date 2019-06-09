@@ -1,0 +1,22 @@
+int main(){
+    for(int i=0 to 100000){
+        nooverflow();
+    }
+    print ("correct stack counting");
+    foo();
+    return 0;
+}
+
+void  nooverflow(){
+
+}
+void foo(){
+    bar();
+}
+
+void bar(){
+    foobar();
+}
+void foobar(){
+    foo();
+}

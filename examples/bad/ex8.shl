@@ -1,0 +1,17 @@
+
+fun(->void) f1= lambda():void{
+    g1();
+};
+fun(->void) g1= lambda():void{
+    f1();
+};
+
+int main(){
+    fun(->void) f= lambda():void{
+        g();
+    };
+    fun(->void) g= lambda():void{
+        f();
+    };
+    return 0;
+}

@@ -1,0 +1,15 @@
+//static binding
+
+int a=0;
+
+int main(){
+    int a=100;
+    f();
+    print(a);
+    return 0;
+}
+
+void f(){
+    a++;
+    print(a);
+}

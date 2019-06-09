@@ -1,0 +1,17 @@
+
+
+int main(){
+    fun(int-> fun(int->int)) f(int a){
+        return lambda(int x): fun(int->int){
+            return lambda(int y):int{
+                return x+y+a;
+            };
+        };
+    }
+    fun(int-> fun(int->int)) f1= f(1);
+    //wrong assignment
+    fun(int,int->int) f2= f1(2);
+    int f3=f2(3);
+    print(f3);
+    return 0;
+}

@@ -1,0 +1,44 @@
+fun(int->int) f(fun(int,int->int) g,int b){
+    return lambda (int x):int{
+        return g(b,x);
+    };
+}
+
+fun(int->int) sum(int a){
+    int sum=a;
+    return lambda(int x):int{
+        sum=sum+x;
+        return sum;
+    };
+}
+
+int main(){
+    print("Higher order function and anonymous function"); 
+    fun(int->int) add7= f(lambda(int x,int y):int {
+        return x+y;
+    },7);
+    print(add7(10));
+    print(add7(20));
+    print(add7(30));
+
+
+    print("Closure"); 
+    fun(int->int) sum1=sum(10);
+    print(sum1(10));
+    print(sum1(10));
+    print(sum1(10));
+    
+
+    print("Recusive lambda");
+
+    fun(int->int) fac = lambda(int x): int{
+        if(x==0) return 1;
+        return fac(x-1)*x;
+    };
+    print(fac(10));
+    print(fac(5));
+
+
+
+    return 0;
+}

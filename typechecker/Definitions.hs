@@ -1,7 +1,6 @@
 module Definitions where
 
 import           AbsDeclaration
-import           EnvDefinitions
 
 import           Control.Monad
 import           Control.Monad.Except

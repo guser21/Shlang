@@ -1,0 +1,26 @@
+
+int main(){
+    // overshadowing
+    int a=12;
+    {
+        boolean a = ( 12 == a );
+        if(a){
+            print("overshadowing works");
+        }
+    }
+    arithmetics();
+    string s ="string";
+    print(s + " addition works");
+
+    return 0;
+}
+
+
+void arithmetics(){
+    int a=12;
+    a++;
+    int b = a*a;
+    if(b>168){
+        print (b);
+    }
+}

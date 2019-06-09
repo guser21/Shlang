@@ -1,8 +1,0 @@
-? callcc
-
-+ detect stack overflow
-+ typechecker
-+ short circuit evaluation
-+ final keyword
-+ break continue
-+ lambda expressions 

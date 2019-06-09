@@ -1,0 +1,12 @@
+int a=1;
+final int b=12;
+int main(){
+    int b=13;
+    b++;
+    if (b==14){
+        print("final overshadowing works");
+    }
+    string a="normal";
+    print(a+ " overshadowing works" );
+    return 0;
+}

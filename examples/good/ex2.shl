@@ -1,0 +1,25 @@
+int main(){
+    int counter=0; 
+
+    int innerCounter=0;
+    int outerCounter=0;
+
+    while(counter<1000){
+        outerCounter++;
+        counter++;
+        
+        while (true){
+            innerCounter++;
+            counter++;
+            if(counter%10 == 0){
+                break;
+            }        
+        }
+        continue;
+    }
+    
+    print(outerCounter);
+    print(innerCounter);
+
+    return 0;
+}

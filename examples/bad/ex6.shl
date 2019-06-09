@@ -1,0 +1,14 @@
+
+
+int main(){
+    fun(int-> fun(int->int)) f(int a){
+        return lambda(int x): fun(int->int){
+            return lambda(int y):int{
+                //wrong return type
+                return "x+y+a";
+            };
+        };
+    }
+
+    return 0;
+}
