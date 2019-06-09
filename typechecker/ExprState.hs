@@ -195,7 +195,8 @@ getStmtType (VRet:tl) expectedType =
     else getStmtType tl expectedType >>=
          (\res -> return $ SimpleType Void : res)
 getStmtType (Print expr:tl) expectedType =
-  getStmtType tl expectedType >>= (\res -> return $ NoRetType : res)
+  getExprType expr >>= isPrintable >> getStmtType tl expectedType >>=
+  (\res -> return $ NoRetType : res)
 getStmtType (Break:tl) expectedType = do
   (_, _, _, context) <- ask
   case context of

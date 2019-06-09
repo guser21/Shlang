@@ -129,3 +129,11 @@ fastEvalBool expr =
 argsToTypes = map (\(Arg argType _) -> argType)
 
 argsToCompoundTypes = map (\(Arg argType _) -> SimpleType argType)
+
+isPrintable :: ValType -> Result ()
+isPrintable type_ =
+  case type_ of
+    SimpleType Int  -> return ()
+    SimpleType Str  -> return ()
+    SimpleType Bool -> return ()
+    _               -> throwError $ "cannot print of type " ++ show type_
