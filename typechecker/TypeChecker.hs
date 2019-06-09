@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module TypeChecker where
 
 import           AbsDeclaration
@@ -45,16 +47,17 @@ checkTypes (Program topDefs)
           topDefs
   let functions =
         filter
-          (\e ->
-             case e of
-               FnDef reType ident args b -> True
-               _                         -> False)
+          (\case
+             FnDef reType ident args b -> True
+             _ -> False)
           topDefs
   (env, consts, _, _) <- ask
   let constIdents = foldl (flip Set.insert) consts globalFinalIdents
   let typeAndIdent =
         map (\(type_, items) -> (type_, map getIdentFromItem items)) globalDefs
-  declCont <- declValueTypeLists typeAndIdent constIdents
+  declCont <-
+    declValueTypeLists typeAndIdent constIdents `catchError`
+    (\e -> throwError $ "In global scope : " ++ e)
   declCont
     (traverse_
        (\(type_, items) ->

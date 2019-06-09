@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module EvalUtils where
 
 import           AbsDeclaration
@@ -71,8 +73,8 @@ declValue nameIdent resVal = do
   l <- newloc
   val <- resVal
   modifyMem (Map.insert l val)
-  
   return (local (Map.insert nameIdent l))
+
 declValueList :: [Ident] -> [Result Value] -> Result (Result a -> Result a)
 declValueList (fn:nameIdents) (fv:values) = do
   declCont <- declValue fn fv
@@ -85,8 +87,6 @@ declValueList (h:t) [] = throwError "Mismatching argument list size"
 declIdents :: [Item] -> [Ident]
 declIdents =
   map
-    (\it ->
-       case it of
-         NoInit ident    -> ident
-         Init ident expr -> ident)
-
+    (\case
+       NoInit ident -> ident
+       Init ident expr -> ident)

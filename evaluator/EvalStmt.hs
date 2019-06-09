@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module EvalStmt where
 
 import           AbsDeclaration
@@ -22,10 +24,9 @@ callStackLimit = 20000
 declValueInit :: Type -> [Item] -> [Result Value]
 declValueInit type_ =
   map
-    (\it ->
-       case it of
-         (NoInit ident)    -> typeDefault type_
-         (Init ident expr) -> evalExpr expr)
+    (\case
+       (NoInit ident) -> typeDefault type_
+       (Init ident expr) -> evalExpr expr)
 
 registerFunCall :: Ident -> Result ()
 registerFunCall funIdent = do

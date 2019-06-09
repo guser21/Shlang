@@ -24,7 +24,7 @@ getNewBlockId :: Result BlockId
 getNewBlockId = do
   (st, l, curBlockId, identR) <- get
   put (st, l, curBlockId + 1, identR)
-  return $ curBlockId+1
+  return $ curBlockId + 1
 
 getCurBlockId :: Result BlockId
 getCurBlockId = do
@@ -63,7 +63,7 @@ typeDefault type_ =
     Bool         -> return $ SimpleType Bool
     Str          -> return $ SimpleType Str
     FuncType _ _ -> return $ SimpleType type_
-    _            -> throwError "unrecognized type"
+    _            -> throwError $ "unrecognized type of " ++ show type_
 
 getIdentFromItem :: Item -> Ident
 getIdentFromItem (NoInit ident)    = ident

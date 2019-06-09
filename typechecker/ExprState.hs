@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module ExprState where
 
 import           AbsDeclaration
@@ -116,15 +118,13 @@ getBlockType (Block stmts) expectedType = do
 
 checkDeclTypes type_ =
   traverse_
-    (\it ->
-       case it of
-         NoInit ident -> do
-           return ()
-         Init ident expr -> do
-           expressionType <- getExprType expr
-           when
-             (expressionType /= SimpleType type_)
-             (throwError $ "incorrect declaration of type" ++ show type_))
+    (\case
+       NoInit ident -> return ()
+       Init ident expr -> do
+         expressionType <- getExprType expr
+         when
+           (expressionType /= SimpleType type_)
+           (throwError $ "incorrect declaration of type" ++ show type_))
 
 checkIfConst :: Ident -> Result ()
 checkIfConst ident = do
