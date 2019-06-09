@@ -57,7 +57,6 @@ transType x = case x of
   Bool -> failure x
   Void -> failure x
   FuncType types type_ -> failure x
-  Fun type_ types -> failure x
 transExpr :: Expr -> Result
 transExpr x = case x of
   EVar ident -> failure x

@@ -116,19 +116,6 @@ Type : 'int' { AbsDeclaration.Int }
      | 'boolean' { AbsDeclaration.Bool }
      | 'void' { AbsDeclaration.Void }
      | 'fun' '(' ListType '->' Type ')' { AbsDeclaration.FuncType $3 $5 }
-     | Type1 { $1 }
-Type1 :: { Type }
-Type1 : Type2 { $1 }
-Type2 :: { Type }
-Type2 : Type3 { $1 }
-Type3 :: { Type }
-Type3 : Type4 { $1 }
-Type4 :: { Type }
-Type4 : Type5 { $1 }
-Type5 :: { Type }
-Type5 : Type6 { $1 }
-Type6 :: { Type }
-Type6 : '(' Type ')' { $2 }
 ListType :: { [Type] }
 ListType : {- empty -} { [] }
          | Type { (:[]) $1 }

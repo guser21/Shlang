@@ -76,10 +76,6 @@ Void.      Type ::= "void" ;
 
 FuncType.  Type ::= "fun" "("[Type] "->" Type ")" ;  
 
-internal   Fun. Type ::= Type "(" [Type] ")" ;
-
-coercions  Type 6 ;
-
 separator  Type "," ;
 
 -- Expressions ---------------------------------------------
